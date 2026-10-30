@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #2547d0;
+  --color-ink-deep: #1a37a8;
+  --color-ink-wash: #eef2fd;
+  --color-text: #0b0d12;
+  --color-muted: #5b6170;
+  --color-subtle: #8a8f9c;
+  --color-line: #e7e9ef;
+  --color-paper: #ffffff;
+  --color-paper-2: #f7f8fb;
+  --color-check: #168a52;
+  --color-check-wash: #e8f6ee;
+  --color-listen: #e5484d;
+
+  --font-sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-hand: var(--font-caveat), "Bradley Hand", "Segoe Print", cursive;
+}
+
+:root {
+  color-scheme: light;
+  --grid: rgba(37, 71, 208, 0.07);
+  --grid-major: rgba(37, 71, 208, 0.11);
+}
+
+html {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-size: 1rem;
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+
+::selection {
+  background: rgba(37, 71, 208, 0.16);
+}
+
+/* ---------- Type scale: tracking and leading change with size ---------- */
+.t-display {
+  font-size: clamp(2.9rem, 6.4vw, 5.6rem);
+  line-height: 1.0;
+  letter-spacing: -0.038em;
+  font-weight: 700;
+  font-optical-sizing: auto;
+}
+.t-h2 {
+  font-size: clamp(2rem, 3.8vw, 3.25rem);
+  line-height: 1.06;
+  letter-spacing: -0.028em;
+  font-weight: 700;
+}
+.t-h3 {
+  font-size: 1.3rem;
+  line-height: 1.25;
+  letter-spacing: -0.014em;
+  font-weight: 600;
+}
+.t-lede {
+  font-size: clamp(1.1rem, 1.5vw, 1.3rem);
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+}
+.t-eyebrow {
+  font-size: 0.8rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+}
+.t-small {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  letter-spacing: 0.005em;
+}
+
+/* ---------- Paper ---------- */
+.graph-paper {
+  background-color: #fff;
+  background-image:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  background-position: -1px -1px;
+}
+
+/* Soft page grid that fades out toward the edges */
+.page-grid {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 30%, transparent 75%);
+}
+
+.hand {
+  font-family: var(--font-hand);
+  color: #22306e;
+  letter-spacing: 0.005em;
+}
+
+/* ---------- Materials ---------- */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+.surface {
+  background: #fff;
+  border: 1px solid var(--color-line);
+  box-shadow:
+    0 1px 1px rgba(16, 24, 40, 0.03),
+    0 8px 24px -8px rgba(16, 24, 40, 0.08);
+}
+
+.surface-lg {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 24px 60px -18px rgba(23, 37, 110, 0.22),
+    0 60px 120px -40px rgba(23, 37, 110, 0.18);
+}
+
+/* ---------- Press feedback: on touch-down, not release ---------- */
+.pressable {
+  transition: transform 100ms ease-out, background-color 150ms ease, box-shadow 150ms ease;
+  will-change: transform;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--color-ink);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 6px 16px -6px rgba(37, 71, 208, 0.55);
+}
+.btn-primary:hover {
+  background: var(--color-ink-deep);
+}
+
+.btn-quiet {
+  background: rgba(15, 23, 42, 0.045);
+  color: var(--color-text);
+}
+.btn-quiet:hover {
+  background: rgba(15, 23, 42, 0.075);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* ---------- Accessibility signals ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .pressable {
+    transition: background-color 150ms ease;
+  }
+  .pressable:active {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: #fff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --grid: rgba(37, 71, 208, 0.14);
+  }
+  .surface,
+  .surface-lg {
+    border-color: #6b7280;
+    box-shadow: none;
+  }
+  .glass {
+    background: #fff;
+    border-bottom: 1px solid #6b7280;
+  }
+  .text-muted {
+    color: #2b2f38;
+  }
+}
