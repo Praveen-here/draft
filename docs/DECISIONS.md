@@ -16,7 +16,7 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 | # | Decision | Status | Why |
 |---|---|---|---|
-| D14 | Landing page: white + **ink blue `#2547d0`**, graph-paper canvas style, headline "Circle it. Ask it. Get it.", hero card auto-plays the Ananya ∫x eˣ dx story | ✅ | Chosen by Praveen; layout inspired by a reference screenshot, but our own copy and visuals |
+| D14 | Landing page: white + **ink blue `#2547d0`**, graph-paper canvas style, headline "Circle it. Ask it. Get it.", hero card auto-plays the Ananya ∫x eˣ dx story | ✅ | Chosen by the lead; layout inspired by a reference screenshot, but our own copy and visuals |
 | D13 | UI follows the **apple-design** skill (`.claude/skills/apple-design`): press on touch-down, critically damped springs, glass nav, reduced-motion/transparency/contrast support | ✅ | Premium, consistent feel; written down in `CLAUDE.md` so every UI change follows it |
 | D12 | Docs live in `docs/`; key names follow `SERVICE_KEY_ENV` + one `APP_ENV` switch | ✅ | Consistent, one-line switch between dev and demo |
 | D11 | Gate model: **Groq `qwen/qwen3.8-27b`**, reasoning off, JSON mode, tested prompt | 🟡 | 14/14 correct, ~266 ms, free. `gpt-oss-20b` was as accurate but ~650 ms |
@@ -37,7 +37,7 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 | # | Question | Notes |
 |---|---|---|
-| Q1 | Final architecture/approach | Praveen to finalise; see [APPROACH_DRAFT.md](APPROACH_DRAFT.md) |
+| Q1 | Final architecture/approach | The lead to finalise; see [APPROACH_DRAFT.md](APPROACH_DRAFT.md) |
 | Q2 | Primary voice: Gradium pipeline or Gemini Live API? | Measure Gradium full-loop latency first |
 | Q3 | Hidden "full solve" feature: yes/no? | Must not be the headline |
 | Q4 | Graph tool in the demo or nice-to-have? | |

@@ -8,13 +8,13 @@ Goal: arrive with everything around the code ready, so we start building feature
 
 ## 1. Accounts and keys
 
-- [x] Gemini: `draft-dev` + `draft-demo` projects and keys (Praveen)
-- [x] Gradium: dev account + key works on the free plan (Praveen)
-- [x] Groq: dev + demo keys (Praveen); old exposed key deleted
-- [ ] Rename `GROQ_DEV_KEY` → `GROQ_KEY_DEV` in Praveen's `.env.local`
+- [x] Gemini: `draft-dev` + `draft-demo` projects and keys (lead)
+- [x] Gradium: dev account + key works on the free plan (lead)
+- [x] Groq: dev + demo keys (lead); old exposed key deleted
+- [ ] Rename `GROQ_DEV_KEY` → `GROQ_KEY_DEV` in the lead's `.env.local`
 - [ ] Gradium **demo** account (team email) + `GRADIUM_KEY_DEMO`
 - [ ] Groq demo key in a **separate account** (own quota)
-- [ ] Raveendra, Sanjay, Darshana: own Gemini / Gradium / Groq dev accounts ([SETUP_GUIDE.md](SETUP_GUIDE.md))
+- [ ] Each teammate: own Gemini / Gradium / Groq dev accounts ([SETUP_GUIDE.md](SETUP_GUIDE.md))
 - [ ] Shared team email + Bitwarden organisation; all keys stored with clear labels
 - [ ] Vercel account linked to GitHub
 - [ ] GitHub org/repo created (empty), all 4 added

@@ -1,6 +1,6 @@
 # Approach (DRAFT, not final)
 
-> ⚠️ This is the **current proposal**, not the final design. Praveen will finalise it, and the team should update this file as decisions are made.
+> ⚠️ This is the **current proposal**, not the final design. The lead will finalise it, and the team should update this file as decisions are made.
 > Anything marked **[OPEN]** is undecided. Decisions go in [DECISIONS.md](DECISIONS.md).
 
 ---

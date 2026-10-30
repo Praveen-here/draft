@@ -1,17 +1,8 @@
 # Project Overview
 
-Source: our Agentathon submission deck (*KingWraps_Agentathon_2026.pdf*), plus what we've discussed since.
+Source: our hackathon submission deck, plus what we've discussed since.
 
-## Team
-
-| Role | Name |
-|---|---|
-| Leader | Praveen Kumar D |
-| Member | T Raveendra |
-| Member | Sanjay M S |
-| Member | Darshana G |
-
-College: PES University · Event: Encode.ai Agentathon 2026 · Track: **Education**
+Track: **Education** · Team of 4
 
 ## One line
 
@@ -72,7 +63,7 @@ College: PES University · Event: Encode.ai Agentathon 2026 · Track: **Educatio
 
 ## Users and impact
 
-- **First 10 users:** classmates from our first-year Engineering Maths class at PES.
+- **First 10 users:** classmates from our first-year Engineering Maths class.
 
 | Before | With ∂raft |
 |---|---|

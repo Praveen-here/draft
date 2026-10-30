@@ -8,7 +8,7 @@ Commands are for **Windows PowerShell**. Never paste keys into chat, WhatsApp or
 ## 0. Before you start
 
 - Install: **Node 20+ LTS**, **Git**, **VS Code**
-- Get access to the team **Bitwarden** (ask Praveen)
+- Get access to the team **Bitwarden** (ask the lead)
 - Create `.env.local` in the project folder (copy `.env.example`), and fill it in as you go:
   ```
   APP_ENV=dev
@@ -90,7 +90,7 @@ Limits are **per project**, so extra keys in the same project don't help.
 
 ---
 
-## 4. Demo accounts (Praveen only)
+## 4. Demo accounts (lead only)
 
 - Gemini: project `draft-demo` ✅
 - Groq: `draft-demo` key ✅ (ideally move it to a separate account for its own quota)

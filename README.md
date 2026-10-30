@@ -2,8 +2,7 @@
 
 **Circle any math problem on your tablet, ask out loud, and ∂raft teaches you that exact step.**
 
-Team **KingWraps** · PES University · Encode.ai Agentathon 2026 · Education track
-Praveen Kumar D (lead) · T Raveendra · Sanjay M S · Darshana G
+A hackathon project · Education track
 
 ---
 

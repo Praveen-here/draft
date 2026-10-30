@@ -17,7 +17,7 @@ Pattern: **`SERVICE_KEY_ENV`**, where ENV is `DEV` or `DEMO`.
 
 Plus one switch: `APP_ENV=dev` (laptops) / `APP_ENV=demo` (Vercel production, demo laptop).
 
-> ⚠️ **To fix:** Praveen's `.env.local` currently has the Groq dev key named `GROQ_DEV_KEY`. Rename it to `GROQ_KEY_DEV` to match the pattern.
+> ⚠️ **To fix:** the lead's `.env.local` currently has the Groq dev key named `GROQ_DEV_KEY`. Rename it to `GROQ_KEY_DEV` to match the pattern.
 
 **Where keys live:**
 - `.env.local` on each laptop (git-ignored), **dev keys only** ideally
@@ -32,7 +32,7 @@ Plus one switch: `APP_ENV=dev` (laptops) / `APP_ENV=demo` (Vercel production, de
 
 - **Console:** https://aistudio.google.com
 - **What we use:** Gemini Flash (planner, ink reading, explanations), Flash-Lite (fallback), Live API (backup voice), Flash TTS (backup TTS). One key covers all of them.
-- **Projects:** `draft-dev`, `draft-demo` (Praveen's account). Teammates: one `draft-dev-<name>` each.
+- **Projects:** `draft-dev`, `draft-demo` (the lead's account). Teammates: one `draft-dev-<name>` each.
 - **Limits:** per **project**, not per key. Google no longer publishes numbers; see AI Studio → **Rate Limit**. Third-party reports range from ~5–30 RPM and ~100–1000 RPD for Flash on the free tier. **Write our real numbers here:**
   - Flash: RPM __ · RPD __ · TPM __
   - Flash-Lite: RPM __ · RPD __ · TPM __
