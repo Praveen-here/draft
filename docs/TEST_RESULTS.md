@@ -4,6 +4,23 @@ Everything we've tested so far, with dates and what we learned.
 
 ---
 
+## 31 Oct 2026: Math engine (Part D)
+
+`npx jiti src/lib/math/check.test.ts`: **71/71 pass**, each check 0–50 ms (most under 5 ms).
+
+| Covered | Result |
+|---|---|
+| ∫x eˣ dx chain (by parts → answer), LaTeX and unicode | ✅ ok |
+| The sign mistake `x eˣ + ∫eˣ dx` | ✅ flagged, with where the values differ |
+| Practice sheet Q8–Q11 planted mistakes (2(x+3) → 2x+3, missing chain-rule ×3, missing + C, (x+4)² = x² + 16) | ✅ all 4 flagged |
+| Q5, Q6, Q7 answers; Q3 as `\int_0^2 x^2 dx` | ✅ |
+| Right but different-looking forms (sin²x + cos²x = 1, ln x² = 2 ln x, −cos²x/2 vs sin²x/2 + C, x/(x+1) = 2 → x = 2(x+1)) | ✅ no false alarms |
+| Side notes (`u = x`, `du = dx`), word problems, unknown LaTeX | ✅ `unsure` / `unparseable` (tutor stays quiet) |
+
+Not covered yet: handwriting → LaTeX accuracy (Part A), matrices, inequalities, limits, `±` inside a step.
+
+---
+
 ## 31 Oct 2026: Brain v1 end to end
 
 Headless Edge: open a worksheet PDF → circle a line → type a question → watch the tutor.

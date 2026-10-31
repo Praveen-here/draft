@@ -12,7 +12,8 @@ Last updated: 31 Oct 2026. Update this file whenever something big lands.
 |---|---|---|
 | `main` | Docs, rules, landing, folder scaffold, and **working brain v1 end to end** (all four parts, built by the lead) + zoom fix | ✅ |
 | `feat/brain-v1` | Where brain v1 was built; fast-forwarded into `main` on 31 Oct | local |
-| `part-a/canvas`, `part-b/agent-brain`, `part-c/voice`, `part-d/math-visuals` | One per teammate; scaffold only | ✅ |
+| `part-d/math-visuals` | `main` merged in + **math engine** (`checkStep`, `checkAnswer`, 71 tests) | local |
+| `part-a/canvas`, `part-b/agent-brain`, `part-c/voice` | One per teammate; scaffold only | ✅ |
 | `docs/mic-toggle-auto-circle`, `docs/some-change` | Old, already merged; safe to delete | local |
 
 The protect-main ruleset on GitHub is **not active yet** (direct pushes to main still work). Setup steps: [WORKING_RULES.md](WORKING_RULES.md).
@@ -49,14 +50,15 @@ visuals: highlight / mark / writeStep -> tldraw shapes; plot / animate / tangent
 | A Canvas | `src/lib/canvas/`, `src/components/app/`, `src/app/app/` | `canvasApi.ts` (circle detect → crop → placement), `circleDetect.ts`, `tutorInk.ts`, `visualStore.ts`, `TutorOverlay.tsx` |
 | B Brain | `src/lib/agent/`, `src/app/api/tutor/`, `src/app/bench/` | `brain.ts`, `prompt.ts`, `schema.ts`, `studentModel.ts`, `route.ts` |
 | C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/`, `src/app/api/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `TutorPanel.tsx`, `MicButton.tsx` |
-| D Math/visuals | `src/lib/math/`, `src/components/visuals/` | `Graph.tsx` (mathjs SVG), `plotState.ts`, `visualsApi.ts`; math engine is a stub |
+| D Math/visuals | `src/lib/math/`, `src/components/visuals/` | `Graph.tsx` (mathjs SVG), `plotState.ts`, `visualsApi.ts`; math engine `parse.ts`, `compare.ts`, `checkStep.ts` (on `part-d/math-visuals`) |
 
 Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main folder.
 
 ## Known gaps and next steps
 
 - [ ] Proactive triggers not wired (`src/lib/agent/triggers.ts`): flag a wrong line, nudge after ~8–10 s idle, quiet ✓ on a right line.
-- [ ] Math engine (`src/lib/math`) returns "unsure"; brain doesn't check steps yet.
+- [x] Math engine works on `part-d/math-visuals` (D28, D29; [TEST_RESULTS.md](TEST_RESULTS.md)). Run `npx jiti src/lib/math/check.test.ts`.
+- [ ] Brain doesn't use the engine yet (Part B): check typed answers, flag wrong lines, `done` only when the engine agrees.
 - [ ] `readInk` / handwriting lines are stubs; PDF text isn't extracted into `pdfText` yet.
 - [ ] Gradium voice instead of browser voice; STT `delay_in_frames` ~12.
 - [ ] `/bench` test page is a placeholder.
