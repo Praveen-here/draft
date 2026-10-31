@@ -10,14 +10,14 @@ Last updated: 31 Oct 2026. Update this file whenever something big lands.
 
 | Branch | What | Pushed? |
 |---|---|---|
-| `main` | Docs, rules, landing + app start screen, folder scaffold for parts A–D | ✅ |
-| `feat/brain-v1` | **Working brain v1 end to end** (all four parts, built by the lead) + zoom fix | ❌ local only (`1454585`, `ebe3228`) |
+| `main` | Docs, rules, landing, folder scaffold, and **working brain v1 end to end** (all four parts, built by the lead) + zoom fix | ✅ |
+| `feat/brain-v1` | Where brain v1 was built; fast-forwarded into `main` on 31 Oct | local |
 | `part-a/canvas`, `part-b/agent-brain`, `part-c/voice`, `part-d/math-visuals` | One per teammate; scaffold only | ✅ |
 | `docs/mic-toggle-auto-circle`, `docs/some-change` | Old, already merged; safe to delete | local |
 
 The protect-main ruleset on GitHub is **not active yet** (direct pushes to main still work). Setup steps: [WORKING_RULES.md](WORKING_RULES.md).
 
-## What works today (on `feat/brain-v1`)
+## What works today (on `main`)
 
 1. `npm run dev` → http://localhost:3000/app (Chrome or Edge) → **Open a PDF**. Test sheet: `samples/practice-sheet.pdf` (untracked; Q1–Q7 graphs/algebra/integration, Q8–Q11 worked answers with planted mistakes).
 2. Draw a loop around a problem → it turns blue and shows under "You circled" in the panel.
@@ -63,7 +63,7 @@ Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main
 - [ ] Not verified on a real iPad: pen circle detection and the no-zoom fix.
 - [ ] Trade-off: with no room beside the page, a graph can cover the questions under the circle.
 - [ ] Gemini Flash models were often 503 / slow on 31 Oct; Flash-Lite is fast and is first in the chain.
-- [ ] Push `feat/brain-v1` and merge into the part branches/main (only when the lead says "push").
+- [ ] Bring `main` into each `part-*` branch so teammates start from brain v1 (they run `git merge origin/main`).
 - [ ] Turn on the protect-main ruleset; delete the old `docs/*` branches.
 
 ## Working rules for AI assistants (short)
