@@ -136,6 +136,8 @@ Visuals are **for teaching only**. They show the idea, never the final answer.
 
 ## 7. Data contracts (agree on these first; everyone codes against them)
 
+> **The source of truth is `src/lib/contracts.ts`.** The sketch below is the original plan. Since then (1 Nov): `writeStep` carries `text` (unicode math, not LaTeX); plots take an optional `yRange`; there's a **`note`** visual (an explain card: `{ id, kind: variable | number | rule | mistake, title, text, target }`, shown as a numbered bubble and a numbered mark on its term, D33); `TutorTurn` has an optional `insight` (what the brain understood); `PlayerApi` has `onBeat` and `say`. How each visual is shown today: [STATUS.md](STATUS.md) ("How it works").
+
 ```ts
 // brain → player (one teaching turn)
 type TutorTurn = {

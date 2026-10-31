@@ -1,86 +1,116 @@
 # Status: where we are (read this first in a new chat)
 
-Last updated: 1 Nov 2026. Update this file whenever something big lands.
+Last updated: 1 Nov 2026 (evening). Update this file whenever something big lands.
 
 ## The product in one paragraph
 
-∂raft is a tablet math tutor (hackathon, Education track). The student opens a worksheet PDF, **circles** part of it with the pen and **asks** a question (voice or text). The **Agent Brain** explains with hints, never the full answer: it talks in short beats, highlights the page, draws graphs and slides values on them while speaking, asks "did you get it?" style check questions, adapts when the student is wrong, and stays in the loop until the student solves the step. The brain is the core feature. Full spec: [AGENT_BRAIN.md](AGENT_BRAIN.md). Decisions: [DECISIONS.md](DECISIONS.md) (D1–D32, open questions Q1–Q16).
+∂raft is a tablet math tutor (hackathon, Education track). The student opens a worksheet PDF, **circles** part of it with the pen and **asks** a question (voice or text). The **Agent Brain** explains with hints, never the full answer: it talks in short beats, marks the exact terms on the page, draws graphs and slides values on them while speaking, asks check questions, adapts when the student is wrong, and stays in the loop until the student solves the step. The brain is the core feature. Spec: [AGENT_BRAIN.md](AGENT_BRAIN.md). Decisions: [DECISIONS.md](DECISIONS.md) (D1–D34; open questions Q1–Q16). How to test: [TESTING.md](TESTING.md).
 
-## Branches
+## Where the work is: branch `integrate/all` (local, not pushed)
+
+Everything current is on **`integrate/all`**, 10+ commits ahead of `main`. Nothing from it is pushed yet; `main` on GitHub still has brain v1 with the old chat panel.
 
 | Branch | What | Pushed? |
 |---|---|---|
-| `main` | Docs, rules, landing, folder scaffold, and **working brain v1 end to end** (all four parts, built by the lead) + zoom fix | ✅ |
-| `feat/brain-v1` | Where brain v1 was built; fast-forwarded into `main` on 31 Oct | local |
-| **`integrate/all`** | **Everything together (D32):** explain cards + the lead's math engine + Part A's canvas (from `origin/part-a/canvas`) + Part D's visuals (from `origin/part-d/math-visuals`). Next step: review, then merge into `main` | local |
-| `feat/explain-cards` | Lesson column + explain cards + ask pill (D30); included in `integrate/all` | local |
-| `part-a/canvas` (remote) | Part A's canvas work (`d6165a0`), built on the scaffold; merged into `integrate/all` | ✅ |
-| `part-d/math-visuals` | Remote: Part D's visuals + checker (`c793b3f`). Local: the lead's math engine (`a097616`), not pushed. Both merged into `integrate/all` | ✅ / local |
+| **`integrate/all`** | **Use this.** Brain v1 + the lead's math engine + Part A's canvas + Part D's visuals + message-bubble chat + graph panel + dragging | local |
+| `main` | Brain v1 end to end (old side chat panel), docs, rules, landing | ✅ |
+| `feat/explain-cards` | Superseded: the first card UI (D30), inside `integrate/all` | local |
+| `part-d/math-visuals` | Local: the lead's math engine (`a097616`, not pushed). Remote: Part D's teammate work (`c793b3f`). Both merged into `integrate/all` | local / ✅ |
+| `part-a/canvas` (remote) | Part A's teammate work (`d6165a0`), merged into `integrate/all` | ✅ |
 | `part-b/agent-brain`, `part-c/voice` | Scaffold only | ✅ |
-| `docs/mic-toggle-auto-circle`, `docs/some-change` | Old, already merged; safe to delete | local |
+| `feat/brain-v1`, `docs/*` | Old, already merged; safe to delete | local |
 
-The protect-main ruleset on GitHub is **not active yet** (direct pushes to main still work). Setup steps: [WORKING_RULES.md](WORKING_RULES.md).
+Leftover: `git stash list` shows `stash@{0}` (Part D files that leaked onto another branch; identical to `a097616`). Safe to `git stash drop`.
+
+**Next git steps (when the lead says so):** merge `integrate/all` into `main`, push, then teammates run `git merge origin/main` on their `part-*` branches. Their branches were built on the old scaffold, so they'll see the new contract (`note` visual, `writeStep.text`), the lesson store and the graph panel.
 
 ## What works today (on `integrate/all`)
 
-1. `npm run dev` → http://localhost:3000/app (Chrome or Edge) → **Open a PDF**. Test sheet: `samples/practice-sheet.pdf` (untracked; Q1–Q7 graphs/algebra/integration, Q8–Q11 worked answers with planted mistakes).
-2. Draw a loop around a problem (a whole line, or a single term) → it turns blue and a **lesson card** appears beside it with starter questions. The circled PDF text is read exactly (Part A).
-3. Type in the ask pill, tap a starter bubble or tap the mic → in ~2–5 s the tutor answers in **message bubbles beside the circle** (D33): white bubbles for the tutor, blue for the student, one per spoken sentence, with numbered explain-card bubbles matching numbered marks snapped onto the exact term in the PDF. Part D's interactive graphs (drag the point, sliders, tangent, area) open in a **separate graph panel** (right side on wide screens, a sheet above the ask bar on tablets/phones).
-4. Answer → your blue bubble, then the tutor's reply; circling another problem replaces the whole thread. Checked at 1440×900, 820×1180 and a phone-size width.
-5. Handwriting is grouped into lines and read to LaTeX by `/app/read-ink` (Part A); the **Layers** panel (top right) lists the recognised equations. The brain doesn't act on them yet.
+Run `npm run dev` → http://localhost:3000/app (Chrome/Edge) → **Open a PDF** → `samples/practice-sheet.pdf` (untracked; Q1–Q7 problems; Q8–Q11 worked answers with one planted mistake each).
+
+1. **Circle** a problem (a whole line or one term) with the pen → the loop turns blue; a **message thread** appears beside it: a white bubble "What would you like to know about this?" plus four reply pills (How do I start? / Why this step? / What do these mean? / Is this right?).
+2. **Ask** by typing in the floating **ask pill** (bottom), tapping a pill, or the mic → a typing bubble, then in ~2–5 s the tutor answers **one white bubble per spoken sentence** (iMessage style, tail bottom-left; the student's bubbles are blue, tail bottom-right).
+   - **Explain cards** are bubbles numbered ①②…; the same number is drawn on the exact term in the PDF (tinted outline + badge), snapped to the PDF's own text positions.
+   - **Graphs** (Part D, Mafs: drag the point, sliders, tangent, area) open in a **separate graph panel**: a glass panel on the right on wide screens (≥ 900 px), a sheet above the ask pill on tablets/phones. A "Graph: y = a·x²" link bubble opens it.
+   - The thread ends with a "Your turn" note; circling another problem replaces the whole thread; ✕ on the thread's pill closes it.
+3. **Placement:** the thread is placed in screen space beside the circle (right, left, below or above; wherever there's room, never on the circle, round the graph panel), follows the page every frame while scrolling, and scrolls itself when long.
+4. **Dragging (D34):** drag the chat by its "∂raft" pill (sticky at the top), and the graph panel by its header. Both track 1:1, rubber-band at edges and carry a flick into a spring. A moved chat keeps its offset from the circle; double-click the pill to auto-place again. The panel floats where dropped and re-docks when dropped near its edge.
+5. **Handwriting** is grouped into lines and read to LaTeX by `/app/read-ink` (Gemini) after a 1.2 s pause; the **Layers** button (top right) lists recognised equations; "Reading your writing…" shows as a small toast. The brain doesn't act on lines yet.
 6. Part D's standalone math studio: `npm run part-d:preview` → http://127.0.0.1:4173.
 
-Tested results: [TEST_RESULTS.md](TEST_RESULTS.md) ("Brain v1 end to end").
+Checked live at 1440×900, 820×1180 and a phone-like width ([TEST_RESULTS.md](TEST_RESULTS.md), 1 Nov).
 
-## How it works (the flow)
+## How it works
 
 ```
-Canvas (tldraw)  --circle-->  session.ts  --> brain.handleCanvas (stores crop image)
-AskBar / mic     --speech-->  session.ts  --> brain.handleSpeech --> POST /api/tutor --> Gemini (one structured call)
-brain.onTurn --> player.play: speaks each beat (browser TTS) and fires its visuals on speech start
-handwriting --1.2 s pause--> /app/read-ink (Gemini) --> "line" events (+ Layers panel); 8 s still --> "idle" events
-visuals: highlight / mark -> tldraw shapes; note -> numbered mark on the term + a bubble; writeStep -> a bubble; plot / tangent / area -> graph panel (TutorOverlay)
+<Canvas> (Part A) creates the CanvasApi on mount → <TutorSession canvas> (lead) builds brain, player, visuals, connects them
+pen loop ──► canvasApi: circle detect + PDF text + crops ──► "circle" event ──► brain (stores context) + thread mounted
+ask pill / mic / reply pill ──► player.say ──► brain.handleSpeech ──► POST /api/tutor ──► Gemini, one structured call
+brain.onTurn ──► player.play: speaks each beat (browser TTS) and fires its visuals as the sentence starts
+   highlight / mark   → tutor-ink shapes on the page (Part A)
+   note               → numbered mark on the term (overlay) + a bubble in the thread
+   writeStep          → a bubble (handwriting font)
+   plot / tangent / area / animateParam → Part D visuals in the graph panel
+handwriting --1.2 s pause--> /app/read-ink ──► "line" events (+ Layers);  8 s still ──► "idle" events  (brain ignores both for now)
 ```
 
-- **One Gemini call per turn** (D25), JSON schema in `src/lib/agent/schema.ts`: `kind, doubt, studentWas, stage, hintLevel, angle, misconception, done, beats[{say, visuals}], waitFor, question`. Boxes come back as `[ymin, xmin, ymax, xmax]` 0–1000 on the circled picture; `brain.ts` maps them to canvas coordinates.
-- **Model chain** (`src/app/api/tutor/route.ts`): `gemini-3.5-flash-lite` (7 s) → `gemini-3.8-flash` (9 s) → lite again (12 s) → `gemini-3.1-flash-lite` (12 s). Answer-leak guard: max 4 beats, max 1 written step. Dev override: `/api/tutor?model=…`.
-- **Student model** carried between turns: hint level, angles tried, misconceptions, checks passed/failed. Graphs already on screen are sent so Gemini reuses the same `plotId`.
-- **Voice is a stand-in** (D27): browser `speechSynthesis` + `webkitSpeechRecognition`. Gradium (tested, works on free plan) replaces it later.
-- **Canvas never moves on its own** (fix `ebe3228`): no auto zoom/pan. Tutor graphs and steps go in the visible area beside the page, else right of / below / above the circle. Reply box font is 16 px and isn't auto-focused on touch (iOS zooms inputs under 16 px).
+- **Brain** (`src/lib/agent`): one Gemini call per turn (D25), JSON schema in `schema.ts` (`kind, doubt, studentWas, stage, hintLevel, angle, misconception, done, beats[{say, visuals}], waitFor, question`). Visual types Gemini may use: highlight, mark, writeStep, **note** (explain card), plot, animate, tangent, area (`prompt.ts`). Boxes are `[ymin,xmin,ymax,xmax]` 0–1000 on the circled crop; `brain.ts` maps them to the page and adapts tangent/area/plot to Part D's format (tangent/area become full visuals replacing their plot in place; the tangent's param becomes `at`).
+- **Guards** (`src/app/api/tutor/route.ts`): max 4 beats, 1 written step, 4 notes per turn. Model chain: `gemini-3.5-flash-lite` (7 s) → `3.8-flash` → lite → `3.1-flash-lite`.
+- **Student model** carried between turns: hint level, angles tried, misconceptions, checks passed/failed, graphs on screen.
+- **Math checker** (`src/lib/math`, D28/D29): numbers at seeded random points; ∫ lines compared up to a constant; equations by real roots; `dy/dx = …`; worded questions; missing `+ C`. Catches all 4 planted practice-sheet mistakes. **Not wired into the brain yet.**
+- **Voice** is a stand-in (D27): browser `speechSynthesis` + `webkitSpeechRecognition`; the mic ignores what it hears while the tutor talks. Gradium is the target.
+- **The canvas never moves on its own** (no auto zoom/pan).
+
+## The UI on screen (all floating over the canvas)
+
+| Thing | Where | File |
+|---|---|---|
+| Top bar (back, title, paper picker, fit) | top | `src/components/app/Canvas.tsx` |
+| Layers button + panel (recognised equations) | top right | `src/components/app/EquationPanel.tsx` (Part A) |
+| Status toast ("Reading your writing…", notices) | under the top bar | `src/components/app/CanvasFeedback.tsx` |
+| Message thread (bubbles, pills, typing, solved) | beside the circle | `src/components/voice/LessonCard.tsx` (content), placed by `src/components/app/TutorOverlay.tsx` |
+| Numbered term marks | on the page | `TutorOverlay.tsx` (`TermMarks`), colours `noteTone.ts` |
+| Graph panel / sheet | right, or above the ask pill | `TutorOverlay.tsx` (`GraphPanel`); graph cards `src/components/visuals/Graph.tsx` |
+| Ask pill (mic, text, send) | bottom centre, above the toolbar | `src/components/voice/AskBar.tsx` |
+| Toolbar (pen, highlighter, eraser, colours, sizes, undo) | bottom | `src/components/app/Toolbar.tsx` |
+
+Safe area for floating UI (set in `TutorSession.tsx`): top 136 px (bars + Layers), bottom 168 px (toolbar + ask pill), sides 12 px. Dragging helper: `src/components/app/drag.ts`. Style: apple-design skill (springs with no bounce except flicks/ticks, glass for chrome, white cards on the page, reduced-motion fallbacks).
 
 ## Where the code is
 
 | Part | Folders | Key files |
 |---|---|---|
-| Lead-only | `src/lib/contracts.ts`, `fakes.ts`, `session.ts`, `src/lib/server/keys.ts`, `src/components/session/TutorSession.tsx` | contracts = the only way parts talk |
-| A Canvas | `src/lib/canvas/`, `src/components/app/`, `src/app/app/` | `canvasApi.ts` (strokes, circles, context, lines, lesson column), `context.ts` (PDF text, crops), `snapTerm.ts`, `equations.ts`/`lines.ts`/`readInk.ts` + `app/read-ink/route.ts` (handwriting), `TutorOverlay.tsx` (bubble placement, graph panel, term marks), `noteTone.ts`, `EquationPanel.tsx` (Layers), `TutorInkShape.tsx`; guide: [PART_A_HANDOFF.md](PART_A_HANDOFF.md) |
-| B Brain | `src/lib/agent/`, `src/app/api/tutor/`, `src/app/bench/` | `brain.ts`, `prompt.ts`, `schema.ts`, `studentModel.ts`, `route.ts` |
-| C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/`, `src/app/api/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `LessonCard.tsx` (the bubble thread), `AskBar.tsx`, `MicButton.tsx` |
-| D Math/visuals | `src/lib/math/`, `src/components/visuals/` | Checker: `checkStep.ts`, `lineParse.ts`, `sampling.ts`. Visuals (Mafs + KaTeX): `Graph.tsx`, `visualsApi.ts`, `model.ts`, `animation.ts`, `FunctionExplorer.tsx`, `preview/`; graph parser `parse.ts`, `calculus.ts`; guide: [part-d/INTEGRATION.md](part-d/INTEGRATION.md) |
+| Lead-only | `src/lib/contracts.ts`, `fakes.ts`, `session.ts`, `src/lib/server/keys.ts`, `src/components/session/TutorSession.tsx`, `scripts/` | contracts = the only way parts talk |
+| A Canvas | `src/lib/canvas/`, `src/components/app/`, `src/app/app/` | `canvasApi.ts` (strokes, circles, context, lines, idle, the lesson store), `visualStore.ts` (anchor, items, safe area), `circleDetect.ts`, `context.ts` (PDF text, crops), `snapTerm.ts`, `equations.ts`/`lines.ts`/`readInk.ts` + `app/read-ink/route.ts`, `tutorInk.ts` + `TutorInkShape.tsx`, `TutorOverlay.tsx`, `drag.ts`; guide [PART_A_HANDOFF.md](PART_A_HANDOFF.md) |
+| B Brain | `src/lib/agent/`, `src/app/api/tutor/`, `src/app/bench/` | `brain.ts`, `prompt.ts`, `schema.ts`, `studentModel.ts`, `triggers.ts` (unused), `route.ts` |
+| C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `LessonCard.tsx`, `AskBar.tsx`, `MicButton.tsx` |
+| D Math/visuals | `src/lib/math/`, `src/components/visuals/` | Checker `checkStep.ts`, `lineParse.ts`, `sampling.ts`; visuals `Graph.tsx`, `visualsApi.ts`, `model.ts`, `animation.ts`, `FunctionExplorer.tsx`, `preview/`; graph parser `parse.ts`, `calculus.ts`; guide [part-d/INTEGRATION.md](part-d/INTEGRATION.md) |
 
 Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main folder.
 
-## Known gaps and next steps
+## Next steps (roughly in order)
 
-- [ ] Proactive triggers not wired (`src/lib/agent/triggers.ts`): flag a wrong line, nudge after ~8–10 s idle, quiet ✓ on a right line.
-- [x] Math engine (D28, D29): `npx tsx src/lib/math/check.test.ts` (75 cases). Part A + D unit tests: `npx tsx --test src/lib/math/math.test.ts src/components/visuals/visuals.test.ts src/lib/canvas/tests/*.test.ts` (60).
-- [x] Handwriting → LaTeX and PDF text (`pdfText`, term positions) from Part A.
-- [ ] Brain doesn't use the engine or the handwriting lines yet (Part B): check typed answers, flag wrong lines, `done` only when the engine agrees.
-- [ ] Every handwritten line is sent to Gemini after a 1.2 s pause (cached, no retries); watch the free quota during practice.
-- [ ] Part A's browser checks (`/app/canvas-test`) and Part D's Playwright suite (`npm run part-d:e2e`) weren't re-run after the merge; `npm run build` not run yet.
-- [ ] Gradium voice instead of browser voice; STT `delay_in_frames` ~12.
+- [ ] **Brain uses the math engine and handwriting** (Part B): judge typed/spoken answers with `checkAnswer`; on a `line` event run `checkStep` → quiet ✓ or a gentle flag (`triggers.ts`); offer a hint after an `idle` event; `done` only when the engine agrees. This is the "agentic" core still missing.
+- [ ] Merge `integrate/all` → `main`, push (only when the lead says), teammates merge `main`.
+- [ ] Re-run Part A's browser checks (`/app/canvas-test`), Part D's Playwright suite, and `npm run build`.
+- [ ] Gradium voice instead of the browser voice (STT `delay_in_frames` ~12).
+- [ ] Try on a real iPad: pen circles, dragging by finger/pen, the no-zoom behaviour, safe areas.
 - [ ] `/bench` test page is a placeholder.
-- [ ] Not verified on a real iPad: pen circle detection and the no-zoom fix.
-- [ ] Trade-off: on a laptop the graph panel takes the page's right margin, so the bubbles move below the circle (over the next questions); on phones the thread gets little height while the graph sheet is open (fold the sheet, or the thread scrolls).
-- [ ] Explain-card marks snap to the PDF's text; terms that aren't printed (a formula, handwriting) still use Gemini's box, which can be a word off.
-- [ ] Gemini Flash models were often 503 / slow on 31 Oct; Flash-Lite is fast and is first in the chain.
-- [ ] Merge `integrate/all` into `main`, then teammates merge `main` into their `part-*` branches (`git merge origin/main`).
-- [ ] Turn on the protect-main ruleset; delete the old `docs/*` branches.
+- [ ] Turn on the protect-main ruleset; delete old branches; drop `stash@{0}`.
+
+## Known trade-offs
+
+- On a laptop the graph panel takes the page's right margin, so the thread moves below the circle (over the next questions) while a graph is shown; drag either one away, or fold the panel.
+- On phones the thread gets little height while the graph sheet is open (it scrolls; the sheet folds).
+- Term marks snap to the PDF's printed text; terms that aren't printed (a rule, handwriting) use Gemini's box, which can be a word off.
+- Every handwritten line costs a Gemini call (cached, no retries); watch the free quota.
+- Gemini Flash was often 503/slow on 31 Oct; Flash-Lite answers in ~2–4 s and is first in the chain.
 
 ## Working rules for AI assistants (short)
 
-- Push **only** when the lead says "push" in that message.
-- Never print or commit key values; `.env.local` is git-ignored. Key names: `GEMINI_KEY_DEV/DEMO` etc. (see [SERVICES_AND_KEYS.md](SERVICES_AND_KEYS.md)).
+- Commit when asked or as part of a requested change on a lead branch; **push only when the lead says "push"** in that message. Never commit to `main` directly.
+- Never print or commit key values; `.env.local` is git-ignored. Keys: `GEMINI_KEY_DEV/DEMO` etc. ([SERVICES_AND_KEYS.md](SERVICES_AND_KEYS.md)).
 - No personal, team or event names in the site or docs; say "the lead", "teammates".
-- UI work uses the apple-design skill. Folder ownership: [WORKING_RULES.md](WORKING_RULES.md).
-- Record new decisions in [DECISIONS.md](DECISIONS.md) and test results in [TEST_RESULTS.md](TEST_RESULTS.md); refresh this file.
+- UI work uses the apple-design skill. Folder ownership: [WORKING_RULES.md](WORKING_RULES.md) (lead branches like `integrate/all` may touch every part).
+- Record decisions in [DECISIONS.md](DECISIONS.md), test results in [TEST_RESULTS.md](TEST_RESULTS.md); refresh this file.
+- Shell gotchas (Git Bash eats backslashes in heredocs, etc.): [TESTING.md §3](TESTING.md).

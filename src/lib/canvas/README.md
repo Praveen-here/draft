@@ -86,19 +86,25 @@ Unchanged unreadable lines are skipped during automatic reading, so they cannot
 block newer lines. Editing a line or explicitly calling `api.readInk()` retries it.
 Quota and connection failures still stop the queue rather than making more calls.
 
-### Part C: microphone
+### Part C: microphone and the conversation (since the 1 Nov integration)
 
-Pass `voice={{ on, onToggle }}` to `Canvas` using Part C's real microphone state.
-With no voice controller the button stays off and explains that voice is unavailable.
-The current Part C placeholder has no keyboard handler; the canvas wrapper supplies it.
-Remove that wrapper handler when Part C adds native keyboard activation.
+`Canvas` creates the API and renders the lead's `<TutorSession canvas={api}>` (pass `tutor={false}`
+to turn it off, as `/app/canvas-test` does). The mic lives in Part C's floating ask pill, not on the
+canvas. The conversation is a message thread mounted with `api.mountVisual(LESSON_CARD_ID, …)`;
+`TutorOverlay` floats it beside the circle (D33) and lets the student drag it (D34).
 
 ### Part D: visuals
 
-Use `api.mountVisual(id, near, node)` / `api.unmountVisual(id)`.
-The current host is **360 × 260 canvas units**, with scrollable overflow. Make the
-component responsive inside that box. React nodes live in an editor-scoped store,
-not in serialised tldraw records. Clearing tutor ink also removes visuals.
+Use `api.mountVisual(id, near, node)` / `api.unmountVisual(id)`; the same id replaces in place.
+Every node other than the thread goes in the **graph panel** (right side on wide screens, a sheet on
+narrow ones), so make it width-responsive. React nodes live in the lesson store (`api.visuals`), not in
+tldraw records. A new circle or `clearTutorInk()` clears the lesson (thread, graphs, marks).
+
+### Explain cards
+
+`api.draw({ type: "note", … })` leaves a numbered mark on its term, snapped onto the printed text with
+`snapTerm.ts`; the card itself is a bubble in the thread. `writeStep` draws nothing on the page (the
+thread shows it). Highlights and marks are `tutor-ink` shapes.
 
 ## Run and verify
 

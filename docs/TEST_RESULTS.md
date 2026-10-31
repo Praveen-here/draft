@@ -2,6 +2,26 @@
 
 Everything we've tested so far, with dates and what we learned.
 
+## 1 Nov 2026: integration, message bubbles, graph panel, dragging (`integrate/all`)
+
+How: [TESTING.md](TESTING.md) (headless Chrome driven by `scripts/browser.mjs`, against the dev server, live Gemini).
+
+| Test | Result |
+|---|---|
+| Types; math checker; Part A + D unit tests | ✅ clean; 75/75; 60/60 |
+| Cross-check: lead's checker on Part D's 43 cases | 36/43 (differences by design: cancelling `(x−10)/(x−10)` is accepted, `+ 42` flagged as a missing constant; `\log_b` then added) |
+| Cross-check: Part D's checker on the lead's 71 cases | 42/71: missed Q9 (chain rule) and Q10 (`+ C`), marked Q7's right answer `x + 3` wrong → kept the lead's checker (D32) |
+| Circle Q1 → thread beside it with reply pills; circle turns blue | ✅ (after fixing: recolouring the stroke had cancelled its own circle event) |
+| "What does a do?" → bubbles per sentence, note ① on the `a` in `y = a·x²`, graph in the panel animating `a` | ✅; note marks snapped via PDF text (Gemini's box had pointed at "graph") |
+| Circle Q6 → old thread replaced, Rule card for integration by parts | ✅ |
+| Scrolling: thread and marks stay on the page, no lag | ✅ (mid-scroll screenshots) |
+| 1440×900: panel right, thread right of the circle (or below it when the panel takes the margin) | ✅ |
+| 820×1180 (page fitted to width): thread below the circle, graph sheet above the ask pill, circle never covered | ✅ (after shortening the sheet to 38vh and relaxing the placement minimum) |
+| ~504 px wide: thread full width under the circle; tight while the sheet is open | ✅ works, cramped |
+| Drag the graph panel off the dock → floats; thread moves back beside the circle; drop near the edge → docks | ✅ |
+| Drag the chat by its pill → stays at that offset from the circle while scrolling; steps out from under the docked panel | ✅ |
+| Not run | Part A's `/app/canvas-test` browser checks, Part D's Playwright suite, `npm run build`, a real tablet/pen |
+
 ## 31 Oct 2026: Part A canvas implementation
 
 - **16 unit checks passed:** circle geometry and false positives, malformed inputs,
