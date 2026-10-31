@@ -6,6 +6,7 @@ import { overlap, padded, union, validBox } from "./geometry";
 import type { InkLine } from "./lines";
 import { canvasLines, finishEquationMotion, inkFingerprint, snapshotEquations, type EquationMotion } from "./equations";
 import { readInk, requestInk, type InkRecognizer } from "./readInk";
+import { snapToTerm } from "./snapTerm";
 import { clearTutorInk, drawTutorInk } from "./tutorInk";
 import { createVisualStore, type LessonColumn, type VisualStore } from "./visualStore";
 
@@ -58,6 +59,8 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
   let reconciling = false;
   let membershipChanged = false;
   let operationQueued = false;
+  /** Our own edits (tagging a stroke, turning a circle blue) that must not count as new writing. */
+  let tagging = false;
 
   const report = (error: unknown) => {
     if (disposed || (error instanceof DOMException && error.name === "AbortError")) return;
@@ -213,9 +216,14 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
         try {
           const points = strokePoints(editor, current);
           const isCircle = !current.meta.equationId && looksLikeCircle(points) && enclosesContent(editor, current, points);
-          editor.run(() => editor.updateShape({
-            id, type: "draw", meta: { ...current.meta, author: "student", kind: isCircle ? "circle" : "ink" },
-          }), { history: "ignore" });
+          tagging = true;
+          try {
+            editor.run(() => editor.updateShape({
+              id, type: "draw", meta: { ...current.meta, author: "student", kind: isCircle ? "circle" : "ink" },
+              // Show it was understood: the circle turns tutor blue.
+              ...(isCircle ? { props: { color: "blue" as const } } : {}),
+            }), { history: "ignore" });
+          } finally { tagging = false; }
           if (isCircle) { circleId = id; selectionChanged = true; }
           else if (circleId === id) circleId = null;
         } catch (error) { report(error); }
@@ -231,6 +239,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
         ? { ...shape, meta: { ...shape.meta, author: "student", kind: shape.meta.kind ?? "ink" } } : shape),
     editor.sideEffects.registerAfterCreateHandler("shape", watchStroke),
     editor.sideEffects.registerBeforeChangeHandler("shape", (before, after) => {
+      if (tagging) return after;
       // Grouping and undo/redo restore membership directly in the same atomic operation.
       if (!reconciling && before.meta.equationId !== after.meta.equationId) {
         motion = undefined;
@@ -244,6 +253,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
       return after;
     }),
     editor.sideEffects.registerAfterChangeHandler("shape", (before, after) => {
+      if (tagging) return;
       if (before.meta.equationId !== after.meta.equationId) { activity(); return; }
       if (before.props === after.props && before.x === after.x && before.y === after.y &&
         before.rotation === after.rotation && before.parentId === after.parentId) return;
@@ -354,6 +364,8 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
           const { type: _type, ...note } = action;
           let anchor: BBox | null = null;
           try { anchor = note.target ? targetBox(editor, note.target) : null; } catch { anchor = null; }
+          // Gemini's box can be a word off; snap the mark onto the printed term when the PDF has it.
+          anchor = snapToTerm(editor, note.title, anchor, latestCircle?.bbox ?? null);
           visuals.set({ id: `note:${note.id}`, kind: "note", note, anchor });
           return;
         }

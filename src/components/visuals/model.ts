@@ -57,7 +57,7 @@ export function visualId(value: unknown): string | undefined {
 export function visualSpec(action: Exclude<GraphAction, { type: "animateParam" }>): VisualSpec {
   if (action.type === "plot") return {
     kind: "plot", fn: formula(action.fn), xRange: range(action.xRange, [-4, 4]),
-    yRange: [-4, 8], params: parameters(action.params),
+    yRange: range(action.yRange, [-4, 8]), params: parameters(action.params),
   };
   const args = action.args;
   if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Visual arguments are missing.");

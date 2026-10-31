@@ -132,6 +132,8 @@ export function AskBar({ canvas, brain, player }: { canvas: CanvasApi; brain: Br
           aria-label="Ask ∂raft"
           enterKeyHint="send"
           className="h-11 min-w-0 flex-1 bg-transparent px-2 text-[16px] tracking-[-0.005em] text-text outline-none placeholder:text-subtle"
+          // The pill is the field: no second focus ring inside it (the global :focus-visible would add one).
+          style={{ outline: "none" }}
         />
         <AnimatePresence initial={false}>
           {hasText && (

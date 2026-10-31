@@ -7,9 +7,7 @@ Part D provides real math checks and teaching visuals. It can run independently 
 ## Status
 
 - [x] LaTeX and plain-expression parsing: fractions, powers, exponentials, trig, roots, logs, and derivative notation.
-- [x] Step checking with domain probes and ten reproducible pseudorandom real samples.
-- [x] Linear/quadratic equation solution-set checks, including lost roots.
-- [x] Indefinite integral answers and integration-by-parts steps, checked by differentiation. Additive constants are ignored by differentiation.
+- [x] Step and answer checking (`createMathApi`, the lead's engine, D28/D29): values compared at seeded random points; lines with ∫ compared up to a constant (each ∫ computed from 1 to x); equations by their real solutions (any function, not only quadratics); `dy/dx = …` against the derivative; worded questions ("6. Find the integral of …"); missing `+ C` flagged. Catches all four planted mistakes on the practice sheet. Cancelling a factor like `(x−3)/(x−3)` counts as fine (Part D's earlier checker said "unsure" here).
 - [x] Mafs graphs and interruptible parameter animation, with reduced-motion support.
 - [x] Tangent, area, number-line, and value-table visuals.
 - [x] KaTeX labels with accessible MathML.
@@ -47,12 +45,13 @@ Use `\ln(x)` or `ln(x)` for natural logarithms. LaTeX `\log(x)` is base 10; plai
 
 | File | Purpose |
 |---|---|
-| `parse.ts` | Bounded LaTeX/MathJSON conversion and arithmetic evaluation |
-| `calculus.ts` | Symbolic derivatives and indefinite-integral step handling |
-| `polynomial.ts` | Linear/quadratic roots and domain restrictions |
-| `compare.ts` | Real sample comparison and uncertainty handling |
-| `checkStep.ts` | The shared `MathApi` implementation |
-| `math.test.ts` | Correctness and malformed-input regression cases |
+| `parse.ts` | Part D: bounded LaTeX/MathJSON parsing and evaluation, used by the graphs (`parseLatex`) |
+| `calculus.ts` | Part D: symbolic derivatives, used by the tangent visual (`differentiateExpression`) |
+| `checkStep.ts` | The shared `MathApi`: `checkStep` and `checkAnswer` |
+| `lineParse.ts` | The checker's reader: LaTeX / unicode / plain lines with `=`, `∫ … dx`, `d/dx`, `\log_b`, implicit multiplication |
+| `sampling.ts` | The checker's random-point comparison, equation roots |
+| `math.test.ts` | Part D's parser and derivative tests (`npm run part-d:test`) |
+| `check.test.ts` | 75 checker cases, incl. the practice sheet (`npx tsx src/lib/math/check.test.ts`) |
 
 ## Test and hand off
 

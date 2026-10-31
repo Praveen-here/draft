@@ -32,6 +32,7 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
   const [status, setStatus] = useState<BrainStatus>(asked ? { state: "thinking" } : { state: "idle" });
   const [said, setSaid] = useState<string | null>(asked ?? null);
   const lastSaid = useRef(asked ?? "");
+  const cardRef = useRef<HTMLElement>(null);
   const reduce = !!useReducedMotion();
 
   useEffect(() => {
@@ -60,6 +61,13 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
   const speaking = !!turn && !finished && spoken >= 0;
   const stateLabel = done ? "Solved" : thinking ? "Thinking" : speaking ? "Speaking" : turn && finished ? "Your turn" : "Ready";
 
+  // When the tutor has finished and waits for the student, bring this card back into view if the lesson
+  // column scrolled down to a graph while it was talking.
+  useEffect(() => {
+    if (!finished || !turn || turn.waitFor === "none") return;
+    cardRef.current?.closest<HTMLElement>("[data-lesson-scroll]")?.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  }, [finished, turn, reduce]);
+
   const close = () => {
     player.stop();
     brain.reset();
@@ -67,6 +75,7 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
 
   return (
     <section
+      ref={cardRef}
       aria-label="∂raft lesson"
       className="overflow-hidden rounded-[24px] bg-white shadow-[0_0_0_0.5px_rgba(15,23,42,0.1),0_2px_6px_rgba(16,24,40,0.05),0_24px_56px_-20px_rgba(23,37,110,0.34)]"
     >

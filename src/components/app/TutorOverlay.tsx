@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useEditor, useQuickReactor } from "tldraw";
 import type { BBox } from "@/lib/contracts";
-import { LESSON_CARD_ID, type LessonColumn, type LessonItem, type VisualStore } from "@/lib/canvas";
+import type { LessonColumn, LessonItem, VisualStore } from "@/lib/canvas";
 import { NOTE_TONE, NoteCard, StepCard } from "./NoteCard";
 
 const spring = { type: "spring" as const, bounce: 0, duration: 0.45 };
@@ -15,7 +15,7 @@ const MIN_FIT = 0.82;
 /**
  * The lesson column beside the circled problem: the lesson card, numbered explain cards matching numbered
  * marks on their terms, graphs and written steps. Lives in page space, so it pans and zooms with the page.
- * Only the lesson card takes touches; everything else lets the pen through.
+ * The lesson card and graphs take touches; explain cards and steps let the pen through.
  */
 export function TutorOverlay({ store }: { store: VisualStore }) {
   const editor = useEditor();
@@ -55,13 +55,17 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
   );
 }
 
+/** Room around the cards inside the scroll area, so their shadows aren't clipped. */
+const BLEED = 14;
+
 function Column({ column, items, reduce }: { column: LessonColumn; items: LessonItem[]; reduce: boolean }) {
-  const colRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
 
-  // The column's height (layout value, in page units), so a tall column can shrink and slide to fit.
+  // The content's height (layout value, in page units), so a tall column can shrink, slide and scroll.
   useLayoutEffect(() => {
-    const el = colRef.current;
+    const el = contentRef.current;
     if (!el) return;
     const measure = () => setHeight(el.offsetHeight);
     measure();
@@ -70,28 +74,52 @@ function Column({ column, items, reduce }: { column: LessonColumn; items: Lesson
     return () => ro.disconnect();
   }, []);
 
+  // As cards arrive the column grows: first shrink it a little, then slide it up so its bottom stays on
+  // screen (never above the top bar). If it still doesn't fit, it scrolls on its own.
+  const room = column.maxY - column.minY;
+  const scale = height > room ? Math.max(MIN_FIT, room / height) : 1;
+  const scrolls = height * scale > room + 1;
+  const top = Math.max(column.minY, Math.min(column.y, column.maxY - height * scale));
+
+  // A scrolling column keeps the newest card in view, and the wheel scrolls the column, not the page.
+  const count = items.length;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && scrolls) el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+  }, [count, scrolls, reduce]);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !scrolls) return;
+    const keep = (e: WheelEvent) => e.stopPropagation();
+    el.addEventListener("wheel", keep, { passive: true });
+    return () => el.removeEventListener("wheel", keep);
+  }, [scrolls]);
+
   // Explain cards that point at a term get numbers 1, 2, 3...; the same number marks the term on the page.
   const numbers = new Map<string, number>();
   for (const i of items) if (i.kind === "note" && i.anchor) numbers.set(i.id, numbers.size + 1);
 
   const enter = reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.97 };
-  // As cards arrive the column grows: first shrink it a little if it can't fit the screen, then slide it up
-  // so its bottom stays on screen (never above the top bar).
-  const room = column.maxY - column.minY;
-  const scale = height > room ? Math.max(MIN_FIT, room / height) : 1;
-  const top = Math.max(column.minY, Math.min(column.y, column.maxY - height * scale));
+  const fade = `linear-gradient(to bottom, transparent 0, #000 ${BLEED}px, #000 calc(100% - ${BLEED * 2}px), transparent 100%)`;
 
   return (
     <>
       <TermMarks items={items} numbers={numbers} reduce={reduce} />
       <motion.div
-        ref={colRef}
-        className="absolute flex flex-col"
-        style={{ left: column.x, width: column.w, gap: GAP, transformOrigin: "top left" }}
+        className="absolute"
+        style={{ left: column.x, width: column.w, transformOrigin: "top left" }}
         initial={false}
         animate={{ top, scale }}
         transition={reduce ? { duration: 0 } : spring}
       >
+        <div
+          ref={scrollRef}
+          data-lesson-scroll=""
+          className={scrolls ? "pointer-events-auto overflow-y-auto overscroll-contain [scrollbar-width:none]" : undefined}
+          style={scrolls ? { maxHeight: room / scale + BLEED * 2, margin: -BLEED, padding: BLEED, maskImage: fade, WebkitMaskImage: fade } : undefined}
+          onPointerDown={scrolls ? (e) => e.stopPropagation() : undefined}
+        >
+        <div ref={contentRef} className="flex flex-col" style={{ gap: GAP }}>
         <AnimatePresence initial={true}>
           {items.map((item) => (
             <motion.div
@@ -101,8 +129,9 @@ function Column({ column, items, reduce }: { column: LessonColumn; items: Lesson
               exit={{ opacity: 0, scale: reduce ? 1 : 0.97 }}
               transition={spring}
               style={{ transformOrigin: "top left" }}
-              className={item.id === LESSON_CARD_ID ? "pointer-events-auto" : undefined}
-              onPointerDown={item.id === LESSON_CARD_ID ? (e) => e.stopPropagation() : undefined}
+              // The lesson card and graphs take touches (buttons, dragging a point); cards let the pen through.
+              className={item.kind === "node" ? "pointer-events-auto" : undefined}
+              onPointerDown={item.kind === "node" ? (e) => e.stopPropagation() : undefined}
             >
               {item.kind === "note" ? (
                 <NoteCard note={item.note} number={numbers.get(item.id)} />
@@ -114,6 +143,8 @@ function Column({ column, items, reduce }: { column: LessonColumn; items: Lesson
             </motion.div>
           ))}
         </AnimatePresence>
+        </div>
+        </div>
       </motion.div>
     </>
   );

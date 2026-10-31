@@ -25,8 +25,8 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
   let history: TutorRequest["history"] = [];
   let model: StudentModel = newStudentModel("none");
   let request = 0;
-  /** Graphs on screen for the current circle (plotId → description), so Gemini reuses them. */
-  let graphs = new Map<string, { fn: string; params: Record<string, number> }>();
+  /** Graphs on screen for the current circle (plotId → what's drawn), so Gemini reuses them. */
+  let graphs = new Map<string, Graph>();
 
   const setStatus = (s: BrainStatus) => statusListeners.forEach((fn) => fn(s));
   const startProblem = () => {
@@ -55,7 +55,9 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
         image: circle?.cropImage || undefined,
         pdfText: circle?.pdfText || undefined,
         transcript,
-        graphs: [...graphs].map(([id, g]) => `${id}: y = ${g.fn} (${Object.entries(g.params).map(([k, v]) => `${k} = ${v}`).join(", ")})`),
+        graphs: [...graphs].map(([id, g]) =>
+          `${id}: y = ${g.fn} (${Object.entries(g.params).map(([k, v]) => `${k} = ${v}`).join(", ")})` +
+          (g.tangentParam ? `, tangent at x = ${g.tangentParam}` : "")),
         history,
         student: {
           hintLevel: model.hintLevel,
@@ -77,12 +79,8 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
         if ("error" in data) throw new Error(data.error);
 
         model = updateModel(model, data.turn);
-        const turn = toTutorTurn(data.turn, circle, data.model, data.ms);
-        for (const v of turn.beats.flatMap((b) => b.visuals)) {
-          if (v.type === "plot") graphs.set(v.id, { fn: v.fn, params: { ...v.params } });
-          const g = v.type === "animateParam" ? graphs.get(v.plotId) : undefined;
-          if (g && v.type === "animateParam") g.params[v.param] = v.to;
-        }
+        const turn = toTutorTurn(data.turn, circle, data.model, data.ms, graphs);
+        rememberGraphs(graphs, turn);
         history = [
           ...history,
           { role: "student" as const, text: transcript },
@@ -129,10 +127,50 @@ function updateModel(m: StudentModel, raw: RawTurn): StudentModel {
   };
 }
 
-/** Gemini's turn → contract turn: boxes on the circled picture become canvas coordinates. */
-export function toTutorTurn(raw: RawTurn, circle: CircleContext | null, model?: string, ms?: number): TutorTurn {
-  const near: Target = { bbox: circle?.bbox ?? { x: 0, y: 0, w: 0, h: 0 } };
+/** A graph on screen: its formula, current parameter values and view, and which param is a tangent point. */
+export type Graph = {
+  fn: string;
+  params: Record<string, number>;
+  xRange: [number, number];
+  yRange?: [number, number];
+  /** Gemini's name for the tangent point (e.g. "t"); Part D's tangent visual calls it "at". */
+  tangentParam?: string;
+};
+
+/** Keep the graphs map in step with what this turn draws and slides. */
+function rememberGraphs(graphs: Map<string, Graph>, turn: TutorTurn) {
+  for (const v of turn.beats.flatMap((b) => b.visuals)) {
+    if (v.type === "plot") graphs.set(v.id, { fn: v.fn, params: { ...v.params }, xRange: v.xRange, yRange: v.yRange });
+    if (v.type === "showVisual" && v.kind === "tangent") {
+      const g = graphs.get(String(v.args.id));
+      if (g) {
+        g.tangentParam = String(v.args.param);
+        g.params[g.tangentParam] = Number(v.args.at);
+      }
+    }
+    if (v.type === "animateParam") {
+      const g = graphs.get(v.plotId);
+      if (g) g.params[v.param === "at" && g.tangentParam ? g.tangentParam : v.param] = v.to;
+    }
+  }
+}
+
+/**
+ * Gemini's turn → contract turn: boxes on the circled picture become canvas coordinates, and graph actions
+ * take the shape Part D's visuals expect (a tangent or area is a full visual that replaces its plot in place).
+ * @param known graphs already on screen from earlier turns, so a tangent can be added to one of them.
+ */
+export function toTutorTurn(
+  raw: RawTurn,
+  circle: CircleContext | null,
+  model?: string,
+  ms?: number,
+  known: Map<string, Graph> = new Map(),
+): TutorTurn {
+  // Part D's visuals need a real box to place things near; with nothing circled, use a 1×1 box.
+  const near: Target = { bbox: circle && circle.bbox.w > 0 && circle.bbox.h > 0 ? circle.bbox : { x: 0, y: 0, w: 1, h: 1 } };
   const all = raw.beats.flatMap((b) => b.visuals);
+  const plots = new Map([...known].map(([id, g]) => [id, { ...g, params: { ...g.params } }]));
 
   const convert = (v: RawVisual): VisualAction | null => {
     switch (v.type) {
@@ -162,22 +200,42 @@ export function toTutorTurn(raw: RawTurn, circle: CircleContext | null, model?: 
         const xMax = finite(v.xMax, 5);
         const yRange: [number, number] | undefined =
           Number.isFinite(v.yMin) && Number.isFinite(v.yMax) && (v.yMax as number) > (v.yMin as number) ? [v.yMin as number, v.yMax as number] : undefined;
-        return { type: "plot", id: v.plotId, fn: v.fn, xRange: xMax > xMin ? [xMin, xMax] : [-5, 5], yRange, params, near };
+        const xRange: [number, number] = xMax > xMin ? [xMin, xMax] : [-5, 5];
+        plots.set(v.plotId, { fn: v.fn, params, xRange, yRange });
+        return { type: "plot", id: v.plotId, fn: v.fn, xRange, yRange, params, near };
       }
-      case "animate":
+      case "animate": {
         if (!v.plotId || !v.param) return null;
+        const g = plots.get(v.plotId);
         return {
           type: "animateParam",
           plotId: v.plotId,
-          param: v.param,
+          param: g?.tangentParam === v.param ? "at" : v.param,
           from: finite(v.from, 0),
           to: finite(v.to, 1),
           ms: Math.min(6000, Math.max(600, finite(v.seconds, 2.5) * 1000)),
         };
-      case "tangent":
-        return v.plotId ? { type: "showVisual", kind: "tangent", args: { plotId: v.plotId, param: v.param ?? "t" }, near } : null;
-      case "area":
-        return v.plotId ? { type: "showVisual", kind: "area", args: { plotId: v.plotId, from: finite(v.from, 0), to: finite(v.to, 1) }, near } : null;
+      }
+      case "tangent": {
+        const g = v.plotId ? plots.get(v.plotId) : undefined;
+        if (!g || !v.plotId) return null;
+        const param = v.param ?? "t";
+        const { [param]: point, ...params } = g.params;
+        g.tangentParam = param;
+        const at = Number.isFinite(point) ? point : (g.xRange[0] + g.xRange[1]) / 2;
+        return { type: "showVisual", kind: "tangent", args: { id: v.plotId, fn: g.fn, at, param, xRange: g.xRange, yRange: g.yRange, params }, near };
+      }
+      case "area": {
+        const g = v.plotId ? plots.get(v.plotId) : undefined;
+        if (!g || !v.plotId) return null;
+        const { from: _f, to: _t, ...params } = g.params;
+        return {
+          type: "showVisual",
+          kind: "area",
+          args: { id: v.plotId, fn: g.fn, from: finite(v.from, 0), to: finite(v.to, 1), xRange: g.xRange, yRange: g.yRange, params },
+          near,
+        };
+      }
       default:
         return null;
     }
