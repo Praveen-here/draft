@@ -2,14 +2,14 @@
 
 // Lead-only: builds the real parts inside the canvas and connects them (src/lib/session.ts).
 
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
 import { useEditor } from "tldraw";
 import { TutorOverlay } from "@/components/app/TutorOverlay";
 import { createVisualsApi } from "@/components/visuals";
-import { TutorPanel } from "@/components/voice";
+import { AskBar, LessonCard } from "@/components/voice";
 import { createBrain } from "@/lib/agent";
-import { createCanvasApi, type CanvasHandle } from "@/lib/canvas";
-import type { BrainApi, PlayerApi } from "@/lib/contracts";
+import { createCanvasApi, LESSON_CARD_ID, type CanvasHandle } from "@/lib/canvas";
+import type { BrainApi, PlayerApi, Target } from "@/lib/contracts";
 import { createMathApi } from "@/lib/math";
 import { createPlayer } from "@/lib/player";
 import { connect } from "@/lib/session";
@@ -25,18 +25,22 @@ export function TutorSession() {
     const visuals = createVisualsApi(canvas);
     const brain = createBrain({ canvas, math: createMathApi() });
     const player = createPlayer({ canvas, visuals });
+    // Every circle starts a lesson: its card goes first in the column beside the problem (cards follow).
+    // A question asked with no lesson open (nothing circled yet) opens one too, before the brain answers.
+    const lesson = (near: Target, asked?: string) =>
+      canvas.mountVisual(LESSON_CARD_ID, near, createElement(LessonCard, { brain, player, asked }));
+    const offCircle = canvas.onEvent((e) => {
+      if (e.type === "circle") lesson({ bbox: e.context.bbox });
+    });
+    const offAsk = player.onStudentSaid((said) => {
+      if (!canvas.visuals.has(LESSON_CARD_ID)) lesson({ bbox: { x: 0, y: 0, w: 0, h: 0 } }, said.transcript);
+    });
+
     const disconnect = connect({ canvas, brain, player });
     setParts({ canvas, brain, player });
 
-    // Keep tutor items clear of the top bar, toolbar and the tutor panel (right side, or bottom on phones).
-    const fit = () => {
-      const wide = window.innerWidth >= 640;
-      canvas.setSafeArea(
-        wide
-          ? { top: 80, right: 396, bottom: 96, left: 12 }
-          : { top: 80, right: 0, bottom: Math.round(window.innerHeight * 0.46) + 96, left: 0 },
-      );
-    };
+    // Keep tutor items clear of the top bar and the toolbar + ask bar at the bottom.
+    const fit = () => canvas.setSafeArea({ top: 80, right: 12, bottom: 168, left: 12 });
     fit();
     window.addEventListener("resize", fit);
 
@@ -45,6 +49,8 @@ export function TutorSession() {
 
     return () => {
       window.removeEventListener("resize", fit);
+      offCircle();
+      offAsk();
       disconnect();
       player.stop();
       canvas.dispose();
@@ -55,7 +61,7 @@ export function TutorSession() {
   return (
     <>
       <TutorOverlay store={parts.canvas.visuals} />
-      <TutorPanel canvas={parts.canvas} brain={parts.brain} player={parts.player} />
+      <AskBar canvas={parts.canvas} brain={parts.brain} player={parts.player} />
     </>
   );
 }

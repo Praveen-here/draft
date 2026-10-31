@@ -12,7 +12,8 @@ Last updated: 31 Oct 2026. Update this file whenever something big lands.
 |---|---|---|
 | `main` | Docs, rules, landing, folder scaffold, and **working brain v1 end to end** (all four parts, built by the lead) + zoom fix | ✅ |
 | `feat/brain-v1` | Where brain v1 was built; fast-forwarded into `main` on 31 Oct | local |
-| `part-a/canvas`, `part-b/agent-brain`, `part-c/voice`, `part-d/math-visuals` | One per teammate; scaffold only | ✅ |
+| `feat/explain-cards` | Lead branch from `main`: chat panel replaced by lesson column + explain cards + ask pill (D30) | local |
+| `part-a/canvas`, `part-b/agent-brain`, `part-c/voice`, `part-d/math-visuals` | One per teammate; scaffold only (`part-d` also has the math engine, local) | ✅ |
 | `docs/mic-toggle-auto-circle`, `docs/some-change` | Old, already merged; safe to delete | local |
 
 The protect-main ruleset on GitHub is **not active yet** (direct pushes to main still work). Setup steps: [WORKING_RULES.md](WORKING_RULES.md).
@@ -20,9 +21,9 @@ The protect-main ruleset on GitHub is **not active yet** (direct pushes to main 
 ## What works today (on `main`)
 
 1. `npm run dev` → http://localhost:3000/app (Chrome or Edge) → **Open a PDF**. Test sheet: `samples/practice-sheet.pdf` (untracked; Q1–Q7 graphs/algebra/integration, Q8–Q11 worked answers with planted mistakes).
-2. Draw a loop around a problem → it turns blue and shows under "You circled" in the panel.
-3. Type or tap the mic and ask → in ~2–4 s the tutor speaks beat by beat, highlights, writes steps, draws a graph and animates a parameter, then asks a question.
-4. Answer wrong on purpose → it marks it and re-explains on the **same** graph.
+2. Draw a loop around a problem → it turns blue and a **lesson card** appears beside it with starter questions (D30, branch `feat/explain-cards`).
+3. Type in the ask pill, tap a starter or tap the mic → in ~2–4 s the tutor speaks beat by beat; **explain cards** for the key letters/numbers/rules appear under the lesson card with a line to their term, plus graphs and steps.
+4. Answer → the lesson card shows only the current exchange and "Your turn"; circling another problem swaps the whole column.
 
 Tested results: [TEST_RESULTS.md](TEST_RESULTS.md) ("Brain v1 end to end").
 
@@ -30,9 +31,9 @@ Tested results: [TEST_RESULTS.md](TEST_RESULTS.md) ("Brain v1 end to end").
 
 ```
 Canvas (tldraw)  --circle-->  session.ts  --> brain.handleCanvas (stores crop image)
-TutorPanel / mic --speech-->  session.ts  --> brain.handleSpeech --> POST /api/tutor --> Gemini (one structured call)
+AskBar / mic     --speech-->  session.ts  --> brain.handleSpeech --> POST /api/tutor --> Gemini (one structured call)
 brain.onTurn --> player.play: speaks each beat (browser TTS) and fires its visuals on speech start
-visuals: highlight / mark / writeStep -> tldraw shapes; plot / animate / tangent / area -> SVG Graph pinned on canvas
+visuals: highlight / mark -> tldraw shapes; note / writeStep / plot -> lesson column beside the circle (TutorOverlay)
 ```
 
 - **One Gemini call per turn** (D25), JSON schema in `src/lib/agent/schema.ts`: `kind, doubt, studentWas, stage, hintLevel, angle, misconception, done, beats[{say, visuals}], waitFor, question`. Boxes come back as `[ymin, xmin, ymax, xmax]` 0–1000 on the circled picture; `brain.ts` maps them to canvas coordinates.
@@ -48,7 +49,7 @@ visuals: highlight / mark / writeStep -> tldraw shapes; plot / animate / tangent
 | Lead-only | `src/lib/contracts.ts`, `fakes.ts`, `session.ts`, `src/lib/server/keys.ts`, `src/components/session/TutorSession.tsx` | contracts = the only way parts talk |
 | A Canvas | `src/lib/canvas/`, `src/components/app/`, `src/app/app/` | `canvasApi.ts` (circle detect → crop → placement), `circleDetect.ts`, `tutorInk.ts`, `visualStore.ts`, `TutorOverlay.tsx` |
 | B Brain | `src/lib/agent/`, `src/app/api/tutor/`, `src/app/bench/` | `brain.ts`, `prompt.ts`, `schema.ts`, `studentModel.ts`, `route.ts` |
-| C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/`, `src/app/api/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `TutorPanel.tsx`, `MicButton.tsx` |
+| C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/`, `src/app/api/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `LessonCard.tsx`, `AskBar.tsx`, `MicButton.tsx` |
 | D Math/visuals | `src/lib/math/`, `src/components/visuals/` | `Graph.tsx` (mathjs SVG), `plotState.ts`, `visualsApi.ts`; math engine is a stub |
 
 Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main folder.
@@ -61,7 +62,8 @@ Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main
 - [ ] Gradium voice instead of browser voice; STT `delay_in_frames` ~12.
 - [ ] `/bench` test page is a placeholder.
 - [ ] Not verified on a real iPad: pen circle detection and the no-zoom fix.
-- [ ] Trade-off: with no room beside the page, a graph can cover the questions under the circle.
+- [ ] Trade-off: with no room beside the page, the lesson column covers the right edge of the page; a very tall column shrinks to 82% and the rest needs a pan.
+- [ ] Explain-card boxes come from Gemini and are sometimes off by a word (once pointed at "graph" instead of "a"); PDF text positions would make them exact.
 - [ ] Gemini Flash models were often 503 / slow on 31 Oct; Flash-Lite is fast and is first in the chain.
 - [ ] Bring `main` into each `part-*` branch so teammates start from brain v1 (they run `git merge origin/main`).
 - [ ] Turn on the protect-main ruleset; delete the old `docs/*` branches.

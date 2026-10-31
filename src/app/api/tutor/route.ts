@@ -90,12 +90,15 @@ async function callGemini(model: string, contents: Content[], timeoutMs: number)
   return JSON.parse(text) as RawTurn;
 }
 
-/** Answer-leak guard and sanity limits: never more than one worked step or four beats. */
+/** Answer-leak guard and sanity limits: never more than one worked step, four beats or four explain cards. */
 function guard(turn: RawTurn): RawTurn {
   let steps = 0;
+  let notes = 0;
   const beats = (turn.beats ?? []).slice(0, 4).map((beat) => ({
     say: beat.say ?? "",
-    visuals: (beat.visuals ?? []).filter((v) => v.type !== "writeStep" || ++steps <= 1),
+    visuals: (beat.visuals ?? []).filter(
+      (v) => (v.type !== "writeStep" || ++steps <= 1) && (v.type !== "note" || ++notes <= 4),
+    ),
   }));
   return {
     ...turn,

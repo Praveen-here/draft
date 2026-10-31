@@ -4,11 +4,14 @@
  */
 
 export type RawVisual = {
-  type: "highlight" | "mark" | "writeStep" | "plot" | "animate" | "tangent" | "area";
+  type: "highlight" | "mark" | "writeStep" | "note" | "plot" | "animate" | "tangent" | "area";
   box?: number[];
   colour?: "blue" | "green" | "red";
   mark?: "tick" | "cross" | "circle";
   text?: string;
+  noteId?: string;
+  title?: string;
+  kind?: "variable" | "number" | "rule" | "mistake";
   plotId?: string;
   fn?: string;
   xMin?: number;
@@ -52,6 +55,17 @@ const visual = {
     obj("highlight", { box, colour: str(["blue", "green", "red"]) }, ["box", "colour"]),
     obj("mark", { box, mark: str(["tick", "cross", "circle"]) }, ["box", "mark"]),
     obj("writeStep", { text: str() }, ["text"]),
+    obj(
+      "note",
+      {
+        noteId: str(),
+        kind: str(["variable", "number", "rule", "mistake"]),
+        title: { type: "STRING", description: "the term itself, short, unicode math, e.g. u = x" },
+        text: { type: "STRING", description: "what it is or does here, plain words, at most 20 words" },
+        box,
+      },
+      ["noteId", "kind", "title", "text"],
+    ),
     obj(
       "plot",
       {

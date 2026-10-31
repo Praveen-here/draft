@@ -13,7 +13,7 @@ export function createPlayer({ canvas, visuals }: Deps): PlayerApi {
   let playing = 0; // id of the turn being played; 0 = none
 
   const fire = (action: VisualAction) => {
-    if (action.type === "highlight" || action.type === "writeStep" || action.type === "mark") canvas.draw(action);
+    if (action.type === "highlight" || action.type === "writeStep" || action.type === "mark" || action.type === "note") canvas.draw(action);
     else visuals.run(action);
   };
   const beat = (turn: TutorTurn, index: number | null) => beatListeners.forEach((fn) => fn(turn, index));

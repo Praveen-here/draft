@@ -1,10 +1,8 @@
 import { Box, createShapeId, toRichText, type Editor, type TLShapeId } from "tldraw";
 import type { InkColour, Target, VisualAction } from "@/lib/contracts";
 
-type CanvasAction = Extract<VisualAction, { type: "highlight" | "writeStep" | "mark" }>;
-
-/** Where the next tutor item goes: a column beside the circled area (next to the page, not over it). */
-export type TutorColumn = { x: number; y: number };
+/** Drawn as tldraw shapes on the page. Notes and written steps go in the lesson column instead (visualStore). */
+type CanvasAction = Extract<VisualAction, { type: "highlight" | "mark" }>;
 
 const TUTOR_META = { author: "tutor" } as const;
 
@@ -20,7 +18,7 @@ export function targetBox(editor: Editor, target: Target): Box | null {
 }
 
 /** Draws one tutor action. Tutor shapes are locked, outside undo, and tagged meta.author = "tutor". */
-export function drawTutorInk(editor: Editor, action: CanvasAction, column: TutorColumn): Box | null {
+export function drawTutorInk(editor: Editor, action: CanvasAction): Box | null {
   let drawn: Box | null = null;
 
   editor.run(
@@ -74,21 +72,6 @@ export function drawTutorInk(editor: Editor, action: CanvasAction, column: Tutor
           });
         }
         drawn = b;
-      }
-
-      if (action.type === "writeStep") {
-        const h = 52;
-        editor.createShape({
-          id: createShapeId(),
-          type: "text",
-          x: column.x,
-          y: column.y,
-          isLocked: true,
-          meta: TUTOR_META,
-          props: { richText: toRichText(action.text), color: "blue", size: "l", font: "draw", autoSize: true },
-        });
-        drawn = new Box(column.x, column.y, 360, h);
-        column.y += h + 12;
       }
     },
     { history: "ignore" },

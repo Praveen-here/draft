@@ -2,12 +2,14 @@ import { Box, type Editor, type TLDrawShape, type TLShape } from "tldraw";
 import type { CanvasApi, CanvasEvent, CircleContext } from "@/lib/contracts";
 import { looksLikeCircle, type Point } from "./circleDetect";
 import { readInk } from "./readInk";
-import { clearTutorInk, drawTutorInk, type TutorColumn } from "./tutorInk";
-import { createVisualStore, type VisualStore } from "./visualStore";
+import { clearTutorInk, drawTutorInk, targetBox } from "./tutorInk";
+import { createVisualStore, type LessonColumn, type VisualStore } from "./visualStore";
 
-/** Size of a pinned graph on the canvas, in page units. */
+/** Width of the lesson column (cards, graphs, steps) beside the circle, in page units. Graphs are this wide. */
 export const VISUAL_W = 380;
 export const VISUAL_H = 270;
+/** Room the column needs on screen to be placed beside the circle rather than below it. */
+const COLUMN_MIN_H = 220;
 
 /** Longest side of the circled picture sent to Gemini, in pixels. */
 const CROP_MAX_PX = 1024;
@@ -22,9 +24,8 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
   const listeners = new Set<(event: CanvasEvent) => void>();
   const visuals = createVisualStore();
   let latestCircle: CircleContext | null = null;
-  /** Where tutor graphs and steps go for the current circle; chosen when the first one arrives. */
-  let column: TutorColumn | null = null;
   let pageRight = 0;
+  let stepCount = 0;
   let safe: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
 
   const emit = (event: CanvasEvent) => listeners.forEach((fn) => fn(event));
@@ -70,8 +71,8 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
 
     const page = inside.find((s) => s.meta?.kind === "page");
     pageRight = page ? (editor.getShapePageBounds(page)?.maxX ?? 0) : 0;
-    column = null;
 
+    // A new problem: the last problem's cards, graphs and ink go away.
     clearTutorInk(editor);
     visuals.clear();
 
@@ -99,24 +100,32 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
    * Pick a spot for the tutor's items that is already on screen and doesn't cover the circle.
    * The canvas never moves: the student keeps looking at what they marked (no zoom, no pan).
    */
-  function anchorColumn(): TutorColumn {
+  function anchorColumn(): LessonColumn {
     const vis = visibleArea();
     const c = latestCircle ? new Box(latestCircle.bbox.x, latestCircle.bbox.y, latestCircle.bbox.w, latestCircle.bbox.h) : vis;
     const w = VISUAL_W;
-    const h = Math.min(VISUAL_H, vis.h - 32);
+    const h = Math.min(COLUMN_MIN_H, vis.h - 32);
     const gap = 16;
     const fits = (x: number, y: number) => x >= vis.x && y >= vis.y && x + w <= vis.maxX && y + h <= vis.maxY;
     const clampX = (x: number) => Math.min(Math.max(x, vis.x + gap), vis.maxX - w - gap);
-    const candidates: TutorColumn[] = [
-      { x: Math.max(c.maxX, pageRight) + 40, y: c.y }, // beside the page, level with the circle
-      { x: c.maxX + 24, y: c.y }, // right of the circle
+    const top = Math.max(c.y, vis.y + gap); // level with the circle, but never under the top bar
+    const candidates = [
+      { x: Math.max(c.maxX, pageRight) + 40, y: top }, // beside the page, level with the circle
+      { x: c.maxX + 24, y: top }, // right of the circle
+      { x: c.x - w - 24, y: top }, // left of the circle
       { x: clampX(c.x), y: c.maxY + gap }, // below the circle
-      { x: clampX(c.x), y: c.y - h - gap }, // above the circle
     ];
-    return candidates.find((p) => fits(p.x, p.y)) ?? { x: vis.maxX - w - gap, y: vis.maxY - h - gap };
+    const spot = candidates.find((p) => fits(p.x, p.y)) ?? { x: vis.maxX - w - gap, y: vis.y + gap };
+    return { ...spot, w, minY: vis.y + gap, maxY: vis.maxY - gap };
   }
 
-  const ensureColumn = () => (column ??= anchorColumn());
+  const ensureColumn = () => {
+    const current = visuals.get().column;
+    if (current) return current;
+    const column = anchorColumn();
+    visuals.setColumn(column);
+    return column;
+  };
 
   return {
     visuals,
@@ -127,18 +136,27 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
     getLatestCircle: () => latestCircle,
     readInk: (region) => readInk(editor, region),
     draw(action) {
-      drawTutorInk(editor, action, ensureColumn());
+      if (action.type === "note") {
+        ensureColumn();
+        const { type: _type, ...note } = action;
+        const b = note.target ? targetBox(editor, note.target) : null;
+        visuals.set({ id: `note:${note.id}`, kind: "note", note, anchor: b ? { x: b.x, y: b.y, w: b.w, h: b.h } : null });
+        return;
+      }
+      if (action.type === "writeStep") {
+        ensureColumn();
+        visuals.set({ id: `step:${++stepCount}`, kind: "step", text: action.text });
+        return;
+      }
+      drawTutorInk(editor, action);
     },
     clearTutorInk() {
       clearTutorInk(editor);
       visuals.clear();
     },
     mountVisual(id, _near, node) {
-      const existing = visuals.get().find((v) => v.id === id);
-      const col = ensureColumn();
-      const spot = existing ?? { x: col.x, y: col.y, w: VISUAL_W, h: VISUAL_H };
-      if (!existing) col.y += VISUAL_H + 16;
-      visuals.set({ id, ...spot, node });
+      ensureColumn();
+      visuals.set({ id, kind: "node", node });
     },
     unmountVisual: (id) => visuals.remove(id),
     setSafeArea(area) {

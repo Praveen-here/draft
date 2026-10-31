@@ -16,6 +16,7 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 | # | Decision | Status | Why |
 |---|---|---|---|
+| D30 | **No chat panel.** Each circled problem gets a **lesson column** beside it (moves with pan/zoom): a lesson card (what ∂raft understood, the sentence being said, its question, "Solved"), then **explain cards** (`note` visual: variable / number / rule / mistake) with a leader line to their term, plus graphs and written steps. A new circle replaces the whole column; the ✕ on the lesson card closes it. Input is one floating glass **ask pill** (mic + text) above the toolbar. D28/D29 are taken on `part-d/math-visuals` | ✅ | A chat sidebar made it feel like a chatbot; explanations pinned to the exact terms feel like a tutor writing on the page |
 | D27 | Brain v1 runs on the **browser's own voice and speech recognition** (Chrome/Edge) as stand-ins; Gradium stays the target for Part C | 🟡 | Lets us demo the whole loop today; swapping the voice doesn't change the brain |
 | D26 | Model order: **`gemini-3.5-flash-lite` first** (7 s timeout), then `3.8-flash`, a Lite retry, then `3.1-flash-lite` | ✅ | On 31 Oct Lite answered in ~2–4 s; Flash was often busy (503) or took 40 s+ |
 | D25 | Brain = **one structured Gemini call per turn** (JSON schema: kind, doubt, beats + visuals, hint level, what to wait for), not a multi-step tool loop. Our code gathers context first and guards the reply (max 4 beats, max 1 worked step) | ✅ | One round trip = fast and predictable; easier to test and to keep from giving answers away |

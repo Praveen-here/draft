@@ -47,8 +47,18 @@ export type StudentSaid = {
 
 export type InkColour = "blue" | "green" | "red";
 
+/** What an explain card is about: a letter, a number, a rule, or a mistake in the student's work. */
+export type NoteKind = "variable" | "number" | "rule" | "mistake";
+
+/**
+ * An explain card beside the problem, pointing at one term on the page.
+ * E.g. title "u = x", text "x gets simpler when you differentiate it: x → 1". Same id = update.
+ */
+export type Note = { id: string; kind: NoteKind; title: string; text: string; target: Target | null };
+
 export type VisualAction =
   | { type: "highlight"; target: Target; colour: InkColour }
+  | ({ type: "note" } & Note)
   | { type: "writeStep"; text: string; near: Target } // one short line, unicode math (e.g. "x → 1")
   | { type: "mark"; target: Target; kind: "tick" | "cross" | "circle" }
   | { type: "plot"; id: string; fn: string; xRange: [number, number]; yRange?: [number, number]; params?: Record<string, number>; near: Target }
@@ -114,9 +124,9 @@ export interface CanvasApi {
   getLatestCircle(): CircleContext | null;
   /** The student's handwriting in a region (or the latest lines) as LaTeX. */
   readInk(region?: BBox): Promise<string[]>;
-  /** Draw a canvas-side visual (highlight, writeStep, mark). Plots go to Part D. */
-  draw(action: Extract<VisualAction, { type: "highlight" | "writeStep" | "mark" }>): void;
-  /** Remove every tutor shape (e.g. "hide tutor ink"). */
+  /** Draw a canvas-side visual (highlight, writeStep, mark, note). Plots go to Part D. */
+  draw(action: Extract<VisualAction, { type: "highlight" | "writeStep" | "mark" | "note" }>): void;
+  /** Remove every tutor shape and card (e.g. a new problem). */
   clearTutorInk(): void;
   /** Place a React visual (e.g. Part D's graph) on the canvas near a target. Same id = replace. */
   mountVisual(id: string, near: Target, node: ReactNode): void;

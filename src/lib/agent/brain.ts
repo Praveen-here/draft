@@ -146,6 +146,12 @@ export function toTutorTurn(raw: RawTurn, circle: CircleContext | null, model?: 
       }
       case "writeStep":
         return v.text ? { type: "writeStep", text: v.text, near } : null;
+      case "note": {
+        if (!v.noteId || !v.title) return null;
+        const bbox = toPage(v.box, circle);
+        const kind = v.kind && ["variable", "number", "rule", "mistake"].includes(v.kind) ? v.kind : "variable";
+        return { type: "note", id: v.noteId, kind, title: v.title, text: v.text ?? "", target: bbox ? { bbox } : null };
+      }
       case "plot": {
         if (!v.fn || !v.plotId) return null;
         const params: Record<string, number> = {};

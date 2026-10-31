@@ -201,6 +201,16 @@ body {
   filter: drop-shadow(0 1px 1px rgba(16, 24, 40, 0.06)) drop-shadow(0 8px 24px rgba(16, 24, 40, 0.1));
 }
 
+/* Tutor's written step: revealed left to right, like a pen */
+@keyframes draft-write {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 /* ---------- Accessibility signals ---------- */
 @media (prefers-reduced-motion: reduce) {
   html {

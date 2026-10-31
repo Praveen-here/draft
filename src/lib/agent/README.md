@@ -16,7 +16,7 @@ You decide **what happens next**: what to say, what to draw, when to ask, when t
 
 1. `npm run dev`, open http://localhost:3000/app (Chrome or Edge), **Open a PDF**.
 2. With the pen, **draw a loop around a problem**. It turns blue and appears under "You circled".
-3. **Ask** in the panel (type, or tap the mic). ∂raft talks, highlights, draws graphs and slides values, then asks you something.
+3. **Ask** in the ask pill (type, tap a starter on the lesson card, or tap the mic). ∂raft talks, highlights, draws graphs and slides values, then asks you something.
 4. Answer it. Get it wrong on purpose and watch it explain differently.
 
 How it works: `brain.ts` sends the circled picture + question + conversation + student model to `/api/tutor`
