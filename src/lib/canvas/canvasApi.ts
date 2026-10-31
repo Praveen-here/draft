@@ -12,7 +12,7 @@ export const VISUAL_H = 270;
 /** Longest side of the circled picture sent to Gemini, in pixels. */
 const CROP_MAX_PX = 1024;
 
-/** Screen space covered by floating UI (e.g. the tutor panel), so revealed items aren't hidden behind it. */
+/** Screen space covered by floating UI (bars, tutor panel); tutor items are placed outside it. */
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 
 export type CanvasHandle = CanvasApi & { visuals: VisualStore; setSafeArea(area: SafeArea): void; dispose(): void };
@@ -22,7 +22,9 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
   const listeners = new Set<(event: CanvasEvent) => void>();
   const visuals = createVisualStore();
   let latestCircle: CircleContext | null = null;
-  let column: TutorColumn = { x: 0, y: 0 };
+  /** Where tutor graphs and steps go for the current circle; chosen when the first one arrives. */
+  let column: TutorColumn | null = null;
+  let pageRight = 0;
   let safe: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
 
   const emit = (event: CanvasEvent) => listeners.forEach((fn) => fn(event));
@@ -67,8 +69,8 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
     });
 
     const page = inside.find((s) => s.meta?.kind === "page");
-    const pageBounds = page ? editor.getShapePageBounds(page) : null;
-    column = { x: Math.max(bounds.maxX, pageBounds?.maxX ?? 0) + 40, y: bounds.y };
+    pageRight = page ? (editor.getShapePageBounds(page)?.maxX ?? 0) : 0;
+    column = null;
 
     clearTutorInk(editor);
     visuals.clear();
@@ -84,30 +86,37 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
     emit({ type: "circle", context: latestCircle });
   }
 
-  /**
-   * Keep the circle and what the tutor just added in view, in the part of the screen the panel
-   * doesn't cover. Zooms out only if needed, never in.
-   */
-  function reveal(box: Box | null) {
-    if (!box) return;
-    const c = latestCircle?.bbox;
-    const all = (c ? Box.Common([box, new Box(c.x, c.y, c.w, c.h)]) : box.clone()).expandBy(24);
+  /** The part of the canvas the student can see right now (not under the bars or the panel), in page units. */
+  function visibleArea(): Box {
     const screen = editor.getViewportScreenBounds();
-    const area = new Box(safe.left, safe.top, screen.w - safe.left - safe.right, screen.h - safe.top - safe.bottom);
     const { x: cx, y: cy, z } = editor.getCamera();
-    const onScreen = new Box((all.x + cx) * z, (all.y + cy) * z, all.w * z, all.h * z);
-    if (area.contains(onScreen)) return;
-
-    const nz = Math.min(z, area.w / all.w, area.h / all.h);
-    editor.setCamera(
-      {
-        x: (area.x + (area.w - all.w * nz) / 2) / nz - all.x,
-        y: (area.y + Math.max(0, (area.h - all.h * nz) / 2)) / nz - all.y,
-        z: nz,
-      },
-      { animation: { duration: 450 } },
-    );
+    const left = safe.left / z - cx;
+    const top = safe.top / z - cy;
+    return new Box(left, top, (screen.w - safe.left - safe.right) / z, (screen.h - safe.top - safe.bottom) / z);
   }
+
+  /**
+   * Pick a spot for the tutor's items that is already on screen and doesn't cover the circle.
+   * The canvas never moves: the student keeps looking at what they marked (no zoom, no pan).
+   */
+  function anchorColumn(): TutorColumn {
+    const vis = visibleArea();
+    const c = latestCircle ? new Box(latestCircle.bbox.x, latestCircle.bbox.y, latestCircle.bbox.w, latestCircle.bbox.h) : vis;
+    const w = VISUAL_W;
+    const h = Math.min(VISUAL_H, vis.h - 32);
+    const gap = 16;
+    const fits = (x: number, y: number) => x >= vis.x && y >= vis.y && x + w <= vis.maxX && y + h <= vis.maxY;
+    const clampX = (x: number) => Math.min(Math.max(x, vis.x + gap), vis.maxX - w - gap);
+    const candidates: TutorColumn[] = [
+      { x: Math.max(c.maxX, pageRight) + 40, y: c.y }, // beside the page, level with the circle
+      { x: c.maxX + 24, y: c.y }, // right of the circle
+      { x: clampX(c.x), y: c.maxY + gap }, // below the circle
+      { x: clampX(c.x), y: c.y - h - gap }, // above the circle
+    ];
+    return candidates.find((p) => fits(p.x, p.y)) ?? { x: vis.maxX - w - gap, y: vis.maxY - h - gap };
+  }
+
+  const ensureColumn = () => (column ??= anchorColumn());
 
   return {
     visuals,
@@ -118,7 +127,7 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
     getLatestCircle: () => latestCircle,
     readInk: (region) => readInk(editor, region),
     draw(action) {
-      reveal(drawTutorInk(editor, action, column));
+      drawTutorInk(editor, action, ensureColumn());
     },
     clearTutorInk() {
       clearTutorInk(editor);
@@ -126,10 +135,10 @@ export function createCanvasApi(editor: Editor): CanvasHandle {
     },
     mountVisual(id, _near, node) {
       const existing = visuals.get().find((v) => v.id === id);
-      const spot = existing ?? { x: column.x, y: column.y, w: VISUAL_W, h: VISUAL_H };
-      if (!existing) column.y += VISUAL_H + 16;
+      const col = ensureColumn();
+      const spot = existing ?? { x: col.x, y: col.y, w: VISUAL_W, h: VISUAL_H };
+      if (!existing) col.y += VISUAL_H + 16;
       visuals.set({ id, ...spot, node });
-      reveal(new Box(spot.x, spot.y, spot.w, spot.h));
     },
     unmountVisual: (id) => visuals.remove(id),
     setSafeArea(area) {

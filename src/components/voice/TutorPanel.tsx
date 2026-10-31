@@ -12,6 +12,11 @@ type Msg =
 
 const spring = { type: "spring" as const, bounce: 0, duration: 0.4 };
 
+/** Only auto-focus the text box with a mouse/trackpad. On tablets it would pop up the keyboard and zoom the page. */
+const focusIfDesktop = (el: HTMLInputElement | null) => {
+  if (el && matchMedia("(pointer: fine)").matches) el.focus({ preventScroll: true });
+};
+
 const KIND_LABEL: Record<string, string> = {
   "next-step": "Next step",
   why: "Why",
@@ -60,7 +65,7 @@ export function TutorPanel({ canvas, brain, player }: { canvas: CanvasApi; brain
         setMsgs([]);
         setStatus({ state: "idle" });
         setOpen(true);
-        requestAnimationFrame(() => inputRef.current?.focus());
+        requestAnimationFrame(() => focusIfDesktop(inputRef.current));
       }),
       brain.onStatus(setStatus),
       brain.onTurn((turn) => setMsgs((m) => [...m, { id: nextId.current++, role: "tutor", turn, spoken: -1, finished: false }])),
@@ -74,7 +79,7 @@ export function TutorPanel({ canvas, brain, player }: { canvas: CanvasApi; brain
               : msg,
           ),
         );
-        if (index === null && turn.waitFor === "answer") inputRef.current?.focus();
+        if (index === null && turn.waitFor === "answer") focusIfDesktop(inputRef.current);
       }),
     ];
     return () => offs.forEach((off) => off());
@@ -209,7 +214,7 @@ export function TutorPanel({ canvas, brain, player }: { canvas: CanvasApi; brain
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={circleImg ? "Ask about what you circled…" : "Circle something, then ask…"}
                 aria-label="Ask ∂raft"
-                className="h-11 min-w-0 flex-1 rounded-full bg-[rgba(15,23,42,0.05)] px-4 text-[0.92rem] text-text outline-none placeholder:text-subtle focus:bg-[rgba(15,23,42,0.07)]"
+                className="h-11 min-w-0 flex-1 rounded-full bg-[rgba(15,23,42,0.05)] px-4 text-[16px] text-text outline-none placeholder:text-subtle focus:bg-[rgba(15,23,42,0.07)]"
               />
               <button
                 type="submit"
