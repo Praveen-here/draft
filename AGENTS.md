@@ -8,6 +8,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+**New chat? Read `docs/STATUS.md` first**: what's built, where the code is, what's next.
+
 ## Who may edit what (all AI assistants)
 
 This repo is split into 4 parts with their own branches and folders. Before editing, check `git branch --show-current` and only edit files in that part's folders as listed in `.github/parts.json` (plus `docs/`, and `package.json`/`package-lock.json` when adding a library). Never edit another part's folders or lead-only files; tell the user what needs changing instead. Full rules: `docs/WORKING_RULES.md`.

@@ -51,12 +51,12 @@ How it works: `brain.ts` sends the circled picture + question + conversation + s
 
 ## Tasks, in order
 
-1. [ ] `/api/tutor`: Gemini Flash with tool calling + streaming; Flash-Lite fallback on 429/5xx
-2. [ ] `prompt.ts`: tune the rules; output must be beats (one sentence + visuals each), max ~4 beats per turn
+1. [x] `/api/tutor`: Gemini with model fallback (v1 uses one structured call, D25; no streaming yet)
+2. [x] `prompt.ts`: tune the rules; output must be beats (one sentence + visuals each), max ~4 beats per turn
 3. [ ] `brain.ts`: the stages (understand → diagnose → explain → check → practice → verify → done)
 4. [ ] Run tools locally (canvas / math), feed results back to Gemini, loop
 5. [ ] Check questions: never accept a bare "yes"; follow up with a small question
-6. [ ] `studentModel.ts`: hint level, tried angles, misconceptions; switch angle after two misses
+6. [x] `studentModel.ts`: hint level, tried angles, misconceptions; switch angle after two misses
 7. [ ] `triggers.ts`: wrong line → gentle flag; idle ~8–10 s → offer a nudge; correct line → quiet ✓
 8. [ ] "Explain it back" judging (open question Q14)
 9. [ ] `/bench`: buttons for "circle", "line", "idle", a text box for speech; show the turns that come back

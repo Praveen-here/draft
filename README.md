@@ -10,6 +10,7 @@ A hackathon project · Education track
 
 | If you want to… | Read |
 |---|---|
+| See what's built so far, where the code is, and what's next | [docs/STATUS.md](docs/STATUS.md) |
 | Understand the project and the tools in plain words | [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md) |
 | Know the problem, the user and the pitch | [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) |
 | Understand **the Agent Brain**, our core feature, and the 4-part work split | [docs/AGENT_BRAIN.md](docs/AGENT_BRAIN.md) |

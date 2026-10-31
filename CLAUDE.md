@@ -2,6 +2,8 @@
 
 Hackathon project. Project docs live in `docs/`; decisions in `docs/DECISIONS.md`.
 
+**New chat? Read `docs/STATUS.md` first**: what's built, where the code is, what's next. Keep it updated when something big lands.
+
 - For any UI work, use the apple-design skill (`.claude/skills/apple-design`).
 - Never print or commit API key values; `.env.local` is git-ignored.
 
