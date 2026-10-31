@@ -36,10 +36,24 @@ export function TutorSession({ canvas }: { canvas: CanvasHandle }) {
     // A question asked with no lesson open (nothing circled yet) opens one too, before the brain answers.
     const lesson = (near: Target, asked?: string) =>
       canvas.mountVisual(LESSON_CARD_ID, near, createElement(LessonCard, { brain, player: play, asked }));
+    // Once a problem is solved, the next question starts fresh: a new thread, and the brain forgets the old
+    // problem (its circle, history and graphs). Circling another problem does the same.
+    let solved = false;
+    const offSolved = brain.onTurn((turn) => { solved = !!turn.insight?.done; });
     const offCircle = canvas.onEvent((e) => {
-      if (e.type === "circle") lesson({ bbox: e.context.bbox });
+      if (e.type !== "circle") return;
+      solved = false;
+      lesson({ bbox: e.context.bbox });
     });
+    // Runs before the brain hears the question (registered before connect() below).
     const offAsk = play.onStudentSaid((said) => {
+      if (solved) {
+        solved = false;
+        brain.reset(); // clears the thread, graphs and marks too
+        // Float the new thread in the middle of the screen, not by the old circle.
+        const view = editor.getViewportPageBounds();
+        canvas.visuals.setAnchor({ x: view.x + view.w / 2 - 1, y: view.y + view.h / 3, w: 2, h: 2 });
+      }
       if (!canvas.visuals.has(LESSON_CARD_ID)) lesson({ bbox: { x: 0, y: 0, w: 0, h: 0 } }, said.transcript);
     });
     // Barge-in also freezes any value that is sliding on a graph.
@@ -60,6 +74,7 @@ export function TutorSession({ canvas }: { canvas: CanvasHandle }) {
 
     return () => {
       window.removeEventListener("resize", fit);
+      offSolved();
       offCircle();
       offAsk();
       offStop();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, type SVGProps } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type SVGProps } from "react";
 import { Coordinates, Line, Mafs, Point, Polygon, Polyline } from "mafs";
 import { differentiateExpression, parseLatex } from "@/lib/math";
 import { MathText } from "./MathText";
@@ -44,8 +44,25 @@ function ParamControls({ spec, onParamChange, onInteractionStart }: { spec: Curv
   </div>;
 }
 
+/** The plot's height follows its box: 270 px on its own, less when a panel gives the card less room. */
+function usePlotHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(270);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => { const h = Math.round(el.clientHeight); if (h > 0) setHeight(h); };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, height] as const;
+}
+
 function Curve({ spec, onParamChange, onInteractionStart, animating = false }: { spec: CurveSpec } & Controls) {
   const [traceAt, setTraceAt] = useState(1);
+  const [plotBox, plotHeight] = usePlotHeight();
   const expression = useMemo(() => parseLatex(spec.fn), [spec.fn]);
   const derivative = useMemo(() => expression && spec.kind === "tangent"
     ? differentiateExpression(expression) : null, [expression, spec.kind]);
@@ -76,8 +93,9 @@ function Curve({ spec, onParamChange, onInteractionStart, animating = false }: {
     </figcaption>
     {!geometry || "error" in geometry ? <VisualError message={geometry && "error" in geometry ? geometry.error : undefined} /> :
       <>
-        <div className={styles.plot} role="group" aria-label={title + " for " + spec.fn}>
-          <Mafs height={270} pan={false} zoom={false} preserveAspectRatio={false}
+        <div ref={plotBox} className={styles.plot} role="group" aria-label={title + " for " + spec.fn}>
+          <div className={styles.plotInner}>
+          <Mafs height={plotHeight} pan={false} zoom={false} preserveAspectRatio={false}
             viewBox={{ x: spec.xRange, y: spec.yRange, padding: 0.3 }}>
             <Coordinates.Cartesian
               xAxis={{ lines: tickStep(spec.xRange[1] - spec.xRange[0]) }}
@@ -116,6 +134,7 @@ function Curve({ spec, onParamChange, onInteractionStart, animating = false }: {
               </g>;
             })}
           </Mafs>
+          </div>
         </div>
         {movable && <p className={styles.dragHint}>{spec.kind === "area"
           ? "Drag start and end to reshape the shaded region."
@@ -140,7 +159,7 @@ function Curve({ spec, onParamChange, onInteractionStart, animating = false }: {
         {spec.kind !== "area" && !inView && <p className={styles.note}>{Number.isFinite(value)
           ? "The curve is outside this view at the selected x. Drag the handle along the axis."
           : "The function is undefined at this x. Drag the handle along the axis."}</p>}
-        {spec.kind === "plot" && Object.keys(spec.params).length > 0 && <div className={styles.readout}>
+        {spec.kind === "plot" && Object.keys(spec.params).length > 0 && <div className={styles.readout + " " + styles.paramReadout}>
           {Object.entries(spec.params).map(([name, value]) =>
             <span key={name} data-param={name}><MathText latex={name + "=" + formatNumber(value)} /></span>)}
         </div>}

@@ -29,7 +29,10 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
   let graphs = new Map<string, Graph>();
 
   const setStatus = (s: BrainStatus) => statusListeners.forEach((fn) => fn(s));
+  /** A new problem starts with a clean slate; an answer still on its way for the old one is dropped. */
   const startProblem = () => {
+    request++;
+    setStatus({ state: "idle" });
     history = [];
     graphs = new Map();
     model = newStudentModel(`circle-${Date.now()}`);
@@ -105,7 +108,6 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
     },
     reset() {
       circle = null;
-      request++;
       startProblem();
       canvas.clearTutorInk();
     },

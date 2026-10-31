@@ -41,6 +41,9 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
   const at = useRef<Pt>({ x: 0, y: 0 });
   /** Room it may use: everything on screen except the bars. */
   const limits = useRef({ left: 0, right: 0, top: 0, bottom: 0, w: 0, h: 0 });
+  /** Which way the circle went when it's off screen (zoomed or scrolled away); null while it's in view. */
+  const [away, setAway] = useState<Away>(null);
+  const awayNow = useRef<Away>(null);
 
   const lesson = items.find((i) => i.kind === "node" && i.id === LESSON_CARD_ID);
   const graphs = items.filter((i): i is Extract<LessonItem, { kind: "node" }> => i.kind === "node" && i.id !== LESSON_CARD_ID);
@@ -55,9 +58,21 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
     if (!el || !list || !box || !a) return;
     const screen = editor.getViewportScreenBounds();
     const W = screen.w, H = screen.h;
-    const p1 = editor.pageToViewport({ x: a.x, y: a.y });
-    const p2 = editor.pageToViewport({ x: a.x + a.w, y: a.y + a.h });
+    const c1 = editor.pageToViewport({ x: a.x, y: a.y });
+    const c2 = editor.pageToViewport({ x: a.x + a.w, y: a.y + a.h });
     const left = s.left, right = W - s.right, top = s.top, bottom = H - s.bottom;
+
+    // The circle is off screen: the thread goes with it instead of sticking to the edge over the page,
+    // and a small "back to your question" pill points the way.
+    const gone: Away = c2.y < top + 4 ? "up" : c1.y > bottom - 4 ? "down" : c2.x < left + 4 ? "left" : c1.x > right - 4 ? "right" : null;
+    if (gone !== awayNow.current) { awayNow.current = gone; setAway(gone); }
+    el.style.opacity = gone ? "0" : "1";
+    el.style.visibility = gone ? "hidden" : "visible";
+    const fade = `opacity 180ms ease, visibility 0s linear ${gone ? 180 : 0}ms`;
+    if (gone) { el.style.transition = fade; return; }
+    // Zoomed in so the circle is bigger than the screen: place round the part that's in view.
+    const p1 = { x: Math.max(c1.x, left), y: Math.max(c1.y, top) };
+    const p2 = { x: Math.min(c2.x, right), y: Math.min(c2.y, bottom) };
     const w = Math.max(220, Math.min(W < 640 ? W - 24 : Math.min(380, Math.max(280, W * 0.3)), right - left));
     const content = (list.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
     const clampX = (x: number) => Math.min(Math.max(x, left), right - w);
@@ -72,14 +87,14 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
     // Dragged by the student: keep their offset from the circle (so it still follows the page), on screen,
     // and stepping out from under the graph panel if the panel lands on it.
     if (pinned.current) {
-      let x = p1.x + pinned.current.x, y = p1.y + pinned.current.y;
+      let x = c1.x + pinned.current.x, y = c1.y + pinned.current.y;
       if (!dragging.current) {
         x = clampX(x);
         y = Math.min(Math.max(y, top), bottom - limits.current.h);
         if (P && hits(x, y, limits.current.h)) x = Math.max(left, Math.min(x, P.l - 12 - w));
       }
       at.current = { x, y };
-      el.style.transition = "none";
+      el.style.transition = fade;
       el.style.width = `${w}px`;
       el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       list.style.maxHeight = `${Math.max(120, bottom - Math.max(y, top))}px`;
@@ -111,21 +126,23 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
       fit("below", clampX(p1.x), p2.y + GAP, Math.max(top, p2.y + GAP), bottom) ??
       fit("above", clampX(p1.x), p1.y - GAP - content, top, Math.min(bottom, p1.y - GAP)) ??
       (P ? fit("below-left", Math.max(left, Math.min(clampX(p1.x), P.l - 12 - w)), p2.y + GAP, Math.max(top, p2.y + GAP), bottom) : null);
-    // Never cover the circle itself: with little space, take a smaller spot around it (the thread scrolls),
-    // and only as a last resort sit just under it, over whatever is there.
+    // Never cover the circle itself: with little space, take a smaller spot around it (the thread scrolls).
+    // No readable spot at all (e.g. zoomed in so the circle fills the screen): float a full-size card in the
+    // bottom corner away from the graph panel, over the page, rather than squeezing it into a sliver.
     const first = around();
-    MIN = 96;
+    MIN = 180;
+    const floatH = Math.min(content, Math.max(220, (bottom - top) * 0.55));
     const spot = first ?? around() ?? {
-      side: "fallback",
-      x: clampX(p1.x),
-      y: Math.min(Math.max(p2.y + GAP, top), bottom - 96),
-      room: Math.max(96, bottom - Math.max(p2.y + GAP, top)),
+      side: "float",
+      x: P && P.l < W / 2 ? right - w : left,
+      y: bottom - floatH,
+      room: floatH,
     };
 
     // Following the camera is instant; moving to another side (e.g. the graph panel opened) glides there.
     const moved = el.dataset.side !== undefined && el.dataset.side !== spot.side && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.dataset.side = spot.side;
-    el.style.transition = moved ? "transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none";
+    el.style.transition = moved ? `transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1), ${fade}` : fade;
     at.current = { x: spot.x, y: spot.y };
     el.style.width = `${w}px`;
     el.style.transform = `translate(${Math.round(spot.x)}px, ${Math.round(spot.y)}px)`;
@@ -134,6 +151,17 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
 
   // A new problem places its thread fresh.
   useEffect(() => { pinned.current = null; }, [gen]);
+
+  /** Bring the circled problem back on screen (keeping the zoom, unless it's too big to fit). */
+  const backToCircle = () => {
+    const a = live.current.anchor;
+    if (!a) return;
+    const animation = reduce ? undefined : { duration: 320 };
+    const view = editor.getViewportPageBounds();
+    // Land it in the upper third, leaving room for the thread below it (zooming out first if it's too big).
+    if (a.w > view.w * 0.8 || a.h > view.h * 0.6) editor.zoomToBounds({ x: a.x, y: a.y, w: a.w, h: a.h * 2.6 }, { inset: 80, animation });
+    else editor.centerOnPoint({ x: a.x + a.w / 2, y: a.y + a.h / 2 + view.h * 0.18 }, { animation });
+  };
 
   /** Drag the thread by its handle (the "∂raft" pill). Double-click the handle to let it place itself again. */
   const grabThread = (e: PointerEvent) => {
@@ -229,10 +257,37 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
         </AnimatePresence>
       </div>
 
+      <AnimatePresence>
+        {away && lesson && (
+          <motion.button
+            key="back"
+            type="button"
+            onClick={backToCircle}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label="Back to your question"
+            className="app-glass app-press pointer-events-auto absolute left-1/2 flex items-center gap-2 rounded-full py-1 pl-1 pr-3.5"
+            style={away === "down" ? { bottom: safe.bottom + 10 } : { top: safe.top - 50 }}
+            initial={reduce ? { opacity: 0, x: "-50%" } : { opacity: 0, x: "-50%", y: away === "down" ? 12 : -12, scale: 0.96 }}
+            animate={{ opacity: 1, x: "-50%", y: 0, scale: 1 }}
+            exit={reduce ? { opacity: 0, x: "-50%" } : { opacity: 0, x: "-50%", scale: 0.96 }}
+            transition={spring}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[0.8rem] font-semibold text-white">∂</span>
+            <span className="text-[0.84rem] font-semibold text-text">Back to your question</span>
+            <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden
+              style={{ transform: `rotate(${{ up: 0, right: 90, down: 180, left: 270 }[away]}deg)` }}>
+              <path d="M12 19V5M6 11l6-6 6 6" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       <GraphPanel panelRef={dock} rootRef={root} graphs={graphs} wide={wide} safe={safe} reduce={reduce} onLayout={place} />
     </div>
   );
 }
+
+type Away = "up" | "down" | "left" | "right" | null;
 
 /** Fade the thread's top edge when older bubbles scroll under it. */
 const FADE = "linear-gradient(to bottom, transparent 0, transparent 9px, #000 14px, #000 100%)";
@@ -244,6 +299,8 @@ const FADE = "linear-gradient(to bottom, transparent 0, transparent 9px, #000 14
  * ask bar on narrow ones. It enters and leaves along the same edge, can be folded away, and opens again
  * when a new graph arrives or a "View graph" bubble is tapped. Drag it by its header to put it anywhere;
  * drop it back near its edge and it docks again.
+ * It never scrolls: the graph's plot shrinks so the whole card fits (extras drop away when the panel is short),
+ * and with several graphs it shows one at a time, with ‹ › to step between them (a new graph comes to the front).
  */
 function GraphPanel({ panelRef, rootRef, graphs, wide, safe, reduce, onLayout }: {
   panelRef: React.RefObject<HTMLDivElement | null>;
@@ -257,26 +314,37 @@ function GraphPanel({ panelRef, rootRef, graphs, wide, safe, reduce, onLayout }:
   const [open, setOpen] = useState(true);
   /** Where the student dropped the panel, in overlay pixels (null = docked). */
   const [pos, setPos] = useState<Pt | null>(null);
+  const [shown, setShown] = useState(0);
   const body = useRef<HTMLDivElement>(null);
+  const room = useSize(rootRef);
   const count = graphs.length;
-  useEffect(() => { if (count) setOpen(true); }, [count]);
+  const index = Math.min(shown, Math.max(0, count - 1));
+  const graph = graphs[index];
+  useEffect(() => { if (count) { setOpen(true); setShown(count - 1); } }, [count]);
   useEffect(() => {
     const show = () => setOpen(true);
     window.addEventListener("draft:show-graphs", show);
     return () => window.removeEventListener("draft:show-graphs", show);
   }, []);
-  useLayoutEffect(onLayout, [onLayout, open, count, wide, pos]);
+  useLayoutEffect(onLayout, [onLayout, open, count, wide, pos, index]);
   useWheelStays(body);
 
   const from = wide ? { x: 40, y: 0 } : { x: 0, y: 40 };
   const width = wide ? "clamp(300px, 28vw, 420px)" : "calc(100% - 24px)";
-  const sheetHeight = "min(38vh, max(30vh, 100vh - 520px))"; // shorter on phones
+  const H = room.h || 800;
+  const sheetHeight = Math.min(H * 0.5, Math.max(H * 0.4, H - 480)); // shorter on phones
+  const maxHeight = Math.round(pos
+    ? (wide ? Math.max(260, H - pos.y - safe.bottom) : sheetHeight)
+    : wide ? H - safe.top - safe.bottom + 64 : sheetHeight);
+  /** Too short for the whole card at its usual size: drop the title, legend and drag hint. */
+  const tight = maxHeight < 500;
   const position: React.CSSProperties = pos
     // Dropped somewhere: stay there (but never further right/down than leaves the header on screen).
-    ? { left: `min(${pos.x}px, calc(100% - 140px))`, top: `min(${pos.y}px, calc(100% - 64px))`, width, maxHeight: wide ? `calc(100% - ${pos.y + safe.bottom}px)` : sheetHeight }
+    ? { left: `min(${pos.x}px, calc(100% - 140px))`, top: `min(${pos.y}px, calc(100% - 64px))`, width, maxHeight }
     : wide
-      ? { top: safe.top, right: Math.max(12, safe.right), maxHeight: `calc(100% - ${safe.top + safe.bottom - 64}px)`, width }
-      : { left: 12, right: 12, bottom: safe.bottom, maxHeight: sheetHeight };
+      ? { top: safe.top, right: Math.max(12, safe.right), maxHeight, width }
+      : { left: 12, right: 12, bottom: safe.bottom, maxHeight };
+  const step = (by: number) => setShown(Math.min(count - 1, Math.max(0, index + by)));
 
   /** Drag by the header. A tap (under 6 px of movement) still folds the panel. */
   const grab = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -322,13 +390,14 @@ function GraphPanel({ panelRef, rootRef, graphs, wide, safe, reduce, onLayout }:
           transition={spring}
           onPointerDown={(e) => e.stopPropagation()}
         >
+          <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
             onPointerDown={grab}
             aria-expanded={open}
             aria-label={`${count === 1 ? "Graph" : `${count} graphs`}: tap to ${open ? "fold" : "open"}, drag to move`}
-            className="flex shrink-0 cursor-grab touch-none flex-col items-stretch px-4 pb-3 pt-1.5 text-left active:cursor-grabbing"
+            className="flex w-full cursor-grab touch-none flex-col items-stretch px-4 pb-3 pt-1.5 text-left active:cursor-grabbing"
           >
             {/* The grabber says "you can move this", like an iOS sheet */}
             <span aria-hidden className="mx-auto mb-1.5 h-[5px] w-9 rounded-full bg-[rgba(15,23,42,0.16)]" />
@@ -342,32 +411,36 @@ function GraphPanel({ panelRef, rootRef, graphs, wide, safe, reduce, onLayout }:
             </svg>
             </span>
           </button>
+          {open && count > 1 && (
+            <div className="absolute bottom-2 right-10 flex items-center gap-0.5 text-[0.8rem] font-medium tabular-nums text-subtle">
+              <PagerButton label="Previous graph" disabled={index === 0} onClick={() => step(-1)} d="M15 18l-6-6 6-6" />
+              <span aria-live="polite" className="min-w-[2.6em] text-center">{index + 1} / {count}</span>
+              <PagerButton label="Next graph" disabled={index === count - 1} onClick={() => step(1)} d="M9 6l6 6-6 6" />
+            </div>
+          )}
+          </div>
           <AnimatePresence initial={false}>
             {open && (
               <motion.div
                 key="graphs"
                 ref={body}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [scrollbar-width:thin]"
+                className={`visual-fit ${tight ? "visual-tight" : ""} flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3`}
                 initial={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
                 transition={spring}
               >
-                <div className="flex flex-col gap-3">
-                  <AnimatePresence initial={true}>
-                    {graphs.map((g) => (
-                      <motion.div
-                        key={g.id}
-                        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={spring}
-                      >
-                        {g.node as ReactNode}
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
+                {graph && (
+                  <motion.div
+                    key={graph.id}
+                    className="flex min-h-0 flex-1 flex-col"
+                    initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={spring}
+                  >
+                    {graph.node as ReactNode}
+                  </motion.div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -442,6 +515,35 @@ function useMedia(query: string): boolean {
     () => matchMedia(query).matches,
     () => true,
   );
+}
+
+function PagerButton({ label, disabled, onClick, d }: { label: string; disabled: boolean; onClick: () => void; d: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="grid h-7 w-7 place-items-center rounded-full text-ink transition-[transform,opacity] duration-150 active:scale-90 active:bg-[rgba(15,23,42,0.06)] disabled:opacity-30"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>
+    </button>
+  );
+}
+
+/** The element's size in pixels, kept up to date. */
+function useSize(ref: React.RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setSize((s) => (s.w === el.clientWidth && s.h === el.clientHeight ? s : { w: el.clientWidth, h: el.clientHeight }));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return size;
 }
 
 /** Wheel events inside this element scroll it, instead of reaching the canvas (which would pan the page). */
