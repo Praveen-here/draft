@@ -1,47 +1,67 @@
 # Part D: Math engine and visuals
 
-**Branch:** `part-d/math-visuals` · **Owner:** _to assign_ · **Spec:** [AGENT_BRAIN.md §6, §8, §10](../../../docs/AGENT_BRAIN.md), [APPROACH_DRAFT.md §7–8](../../../docs/APPROACH_DRAFT.md) · **Rules:** [WORKING_RULES.md](../../../docs/WORKING_RULES.md)
+**Branch:** `part-d/math-visuals` · **Spec:** [AGENT_BRAIN.md](../../../docs/AGENT_BRAIN.md) · **Rules:** [WORKING_RULES.md](../../../docs/WORKING_RULES.md)
 
-You keep the brain **honest** (the engine decides if a step is right, not Gemini) and give it **pictures** (graphs whose values change while ∂raft talks). You also own the **demo**.
+Part D provides real math checks and teaching visuals. It can run independently of the other parts in the [Math studio preview](../../components/visuals/preview) (run `npm run part-d:preview`, then open http://127.0.0.1:4173).
 
-## Your folders (only edit these)
+## Status
 
-| Folder | What's in it |
-|---|---|
-| `src/lib/math/` | Parsing LaTeX, checking steps and answers |
-| `src/components/visuals/` | Graph, tangent, area, number line, table, and the `VisualsApi` ([README](../../components/visuals/README.md)) |
+- [x] LaTeX and plain-expression parsing: fractions, powers, exponentials, trig, roots, logs, and derivative notation.
+- [x] Step checking with domain probes and ten reproducible pseudorandom real samples.
+- [x] Linear/quadratic equation solution-set checks, including lost roots.
+- [x] Indefinite integral answers and integration-by-parts steps, checked by differentiation. Additive constants are ignored by differentiation.
+- [x] Mafs graphs and interruptible parameter animation, with reduced-motion support.
+- [x] Tangent, area, number-line, and value-table visuals.
+- [x] KaTeX labels with accessible MathML.
+- [x] Three demo problems, a script, screenshots, and a captioned Part D backup video.
+- [ ] Full canvas + brain + voice rehearsal after the other parts are connected.
+
+## Public entry
+
+```ts
+import { createMathApi } from "@/lib/math";
+
+const math = createMathApi();
+await math.checkStep("2*(x+3)", "2*x+6");
+// { ok: true }
+await math.checkAnswer("\\int x e^x\\,dx", "x e^{x}-e^x+C");
+// { ok: true }
+```
+
+`parseLatex` and `differentiateExpression` are also public for graph evaluation. Inputs are parsed as arithmetic trees, never executed as JavaScript. Assignments, property access, arbitrary functions, incomplete input, and oversized expressions are rejected.
+
+## Result handling
+
+- `ok: true`: the supported checks passed.
+- `reason: "not-equivalent"`: a numerical mismatch or changed polynomial solution set was found.
+- `reason: "unparseable"`: unsupported/incomplete notation; ask the student to confirm the transcription.
+- `reason: "unsure"`: insufficient real samples, changed domains, or a transformation needing more context.
+
+**The brain must not treat `unparseable` or `unsure` as a wrong student answer.** Keep the existing `StepCheck` contract. The checker gives no worked solution.
+
+Numerical equivalence is evidence, not a general proof. Fractions retain their domain restrictions: cancelling `(x-10)/(x-10)` produces `unsure` unless the missing restriction is handled elsewhere. Non-polynomial equation transformations are conservative. Definite integrals, inequalities, systems, matrices, complex arithmetic, and arbitrary natural-language questions are outside this version's verifier.
+
+Use `\ln(x)` or `ln(x)` for natural logarithms. LaTeX `\log(x)` is base 10; plain `log(x)` follows math.js and is natural log. Variables are Latin letters or supported Greek names; `e` and `pi` are constants.
 
 ## Files
 
-| File | Does | Status |
-|---|---|---|
-| `math/index.ts` | Public entry | ✅ |
-| `math/parse.ts` | LaTeX → expression you can evaluate | ⬜ stub |
-| `math/checkStep.ts` | `createMathApi()`: implements `MathApi` | ⬜ stub |
-| `visuals/index.ts` | Public entry | ✅ |
-| `visuals/visualsApi.ts` | `createVisualsApi(canvas)`: implements `VisualsApi`, mounts graphs via `canvas.mountVisual` | 🟡 skeleton |
-| `visuals/Graph.tsx` | The graph component (plot + live parameter changes) | 🟡 placeholder |
+| File | Purpose |
+|---|---|
+| `parse.ts` | Bounded LaTeX/MathJSON conversion and arithmetic evaluation |
+| `calculus.ts` | Symbolic derivatives and indefinite-integral step handling |
+| `polynomial.ts` | Linear/quadratic roots and domain restrictions |
+| `compare.ts` | Real sample comparison and uncertainty handling |
+| `checkStep.ts` | The shared `MathApi` implementation |
+| `math.test.ts` | Correctness and malformed-input regression cases |
 
-## What you give the others
+## Test and hand off
 
-- `MathApi`: `checkStep(prev, next)`, `checkAnswer(problem, answer)` → `{ ok: true }` or `{ ok: false, reason }`
-- `VisualsApi`: `run(plot | animateParam | showVisual)`
+```sh
+npm run part-d:test
+npm run part-d:preview
+npm run part-d:e2e
+npm run build
+node .github/scripts/part-guard.mjs --local
+```
 
-## What you use from others
-
-- `CanvasApi.mountVisual` / `unmountVisual` (Part A) to place your visuals. Until ready: `fakeCanvas()`
-
-## Tasks, in order
-
-1. [ ] `parse.ts`: LaTeX → expression (`@cortex-js/compute-engine` or math.js); handle `\frac`, powers, `e^x`, trig
-2. [ ] `checkStep`: compare both sides at 5–10 random points (watch for division by zero); `unsure` if parsing fails
-3. [ ] `checkAnswer` for integrals: differentiate the answer (nerdamer) and compare to the integrand; ignore `+ C`
-4. [ ] Pick the graph library (Q13: function-plot vs **Mafs**, leaning Mafs) and add it (tell the team first)
-5. [ ] `Graph.tsx`: plot `fn` over `xRange` with `params`; smooth `animateParam` (spring/tween, reduced-motion aware)
-6. [ ] `showVisual`: tangent line at a point, shaded area under a curve, number line, table of values
-7. [ ] KaTeX for any typed math in visuals
-8. [ ] **Demo**: pick 2–3 problems (∫x·eˣ dx; derivative of x² with a sliding tangent), write the demo script, record a backup video
-
-## Test alone
-
-Unit-check a list of `[prev, next, expected]` steps. Render `<Graph>` on its own page or call `createVisualsApi(fakeCanvas())`.
+The preview uses a temporary canvas adapter and caption sequence. It calls the real `MathApi` and `VisualsApi`; it does not use `fakeMath` or `fakeVisuals`. All source files stay inside Part D's folders. See [integration notes](../../../docs/part-d/INTEGRATION.md) and [demo script](../../../docs/part-d/DEMO.md).
