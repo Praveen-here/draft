@@ -1,0 +1,22 @@
+{
+  "$comment": "Which folders each part owns. Used by .github/scripts/part-guard.mjs and explained in docs/WORKING_RULES.md. Only the lead changes this file.",
+  "shared": ["package.json", "package-lock.json", "docs/"],
+  "parts": {
+    "a": {
+      "name": "Canvas eyes and hands",
+      "paths": ["src/components/app/", "src/app/app/", "src/lib/canvas/"]
+    },
+    "b": {
+      "name": "Agent Brain",
+      "paths": ["src/lib/agent/", "src/app/api/tutor/", "src/app/bench/"]
+    },
+    "c": {
+      "name": "Voice and player",
+      "paths": ["src/lib/voice/", "src/lib/player/", "src/components/voice/", "src/app/api/voice/"]
+    },
+    "d": {
+      "name": "Math and visuals",
+      "paths": ["src/lib/math/", "src/components/visuals/"]
+    }
+  }
+}

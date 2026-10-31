@@ -1,0 +1,25 @@
+# Who must review changes. Works with "Require review from Code Owners" in the protect-main ruleset.
+# Rules: docs/WORKING_RULES.md
+#
+# Everything needs the lead's review by default.
+* @Praveen-here
+
+# When each part has an owner, uncomment and put their GitHub username, so they review their own folders.
+# Part A: Canvas
+# /src/components/app/   @teammate-a
+# /src/app/app/          @teammate-a
+# /src/lib/canvas/       @teammate-a
+# Part C: Voice and player
+# /src/lib/voice/        @teammate-c
+# /src/lib/player/       @teammate-c
+# /src/components/voice/ @teammate-c
+# /src/app/api/voice/    @teammate-c
+# Part D: Math and visuals
+# /src/lib/math/         @teammate-d
+# /src/components/visuals/ @teammate-d
+
+# Shared and rule files: always the lead.
+/src/lib/contracts.ts @Praveen-here
+/.github/             @Praveen-here
+/CLAUDE.md            @Praveen-here
+/AGENTS.md            @Praveen-here

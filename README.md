@@ -13,6 +13,7 @@ A hackathon project · Education track
 | Understand the project and the tools in plain words | [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md) |
 | Know the problem, the user and the pitch | [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) |
 | Understand **the Agent Brain**, our core feature, and the 4-part work split | [docs/AGENT_BRAIN.md](docs/AGENT_BRAIN.md) |
+| Know your branch, which folders you may change, and how it's checked | [docs/WORKING_RULES.md](docs/WORKING_RULES.md) |
 | See how we currently plan to build it (**draft**) | [docs/APPROACH_DRAFT.md](docs/APPROACH_DRAFT.md) |
 | Check which services/keys we use, limits and costs | [docs/SERVICES_AND_KEYS.md](docs/SERVICES_AND_KEYS.md) |
 | Set up your own accounts and keys | [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) |
@@ -45,3 +46,4 @@ npm run build    # production build check
 1. **Never commit or paste API keys.** They live only in `.env.local` (ignored by git), the password manager and Vercel.
 2. **Never use `*_DEMO` keys while building.** They're saved for judging day.
 3. When we decide something, add it to [docs/DECISIONS.md](docs/DECISIONS.md).
+4. **Only change your own part's folders**, on your part's branch. See [docs/WORKING_RULES.md](docs/WORKING_RULES.md).
