@@ -16,10 +16,12 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 | # | Decision | Status | Why |
 |---|---|---|---|
+| D16 | **No circle button.** The pen is always a pen; the app detects circles automatically (closed loop around existing content) and treats everything else as writing | ✅ | Fewer controls, more natural: the student just draws. A circle marks context but doesn't make the tutor speak on its own |
+| D15 | **Mic on/off button** for talking. Tap to start talking to the tutor, tap again to stop it listening. Mic off = no audio captured or sent | ✅ | The student decides when they're talking to the tutor, so no guessing. Also saves Gradium credits and avoids false triggers in noisy rooms. Makes the "is this for me?" gate mostly unnecessary (D9/D11 now lower priority) |
 | D14 | Landing page: white + **ink blue `#2547d0`**, graph-paper canvas style, headline "Circle it. Ask it. Get it.", hero card auto-plays the Ananya ∫x eˣ dx story | ✅ | Chosen by the lead; layout inspired by a reference screenshot, but our own copy and visuals |
 | D13 | UI follows the **apple-design** skill (`.claude/skills/apple-design`): press on touch-down, critically damped springs, glass nav, reduced-motion/transparency/contrast support | ✅ | Premium, consistent feel; written down in `CLAUDE.md` so every UI change follows it |
 | D12 | Docs live in `docs/`; key names follow `SERVICE_KEY_ENV` + one `APP_ENV` switch | ✅ | Consistent, one-line switch between dev and demo |
-| D11 | Gate model: **Groq `qwen/qwen3.8-27b`**, reasoning off, JSON mode, tested prompt | 🟡 | 14/14 correct, ~266 ms, free. `gpt-oss-20b` was as accurate but ~650 ms |
+| D11 | Gate model: **Groq `qwen/qwen3.8-27b`**, reasoning off, JSON mode, tested prompt. *Lower priority since D15* | 🟡 | 14/14 correct, ~266 ms, free. `gpt-oss-20b` was as accurate but ~650 ms |
 | D10 | **Jev on hold** (not buying the $5 top-up for now) | 🟡 | Groq matches it on speed and accuracy for free. Revisit if Groq struggles on the full test set, or if TypeSafe is a sponsor |
 | D9 | Gate order: rules → Groq → Gemini Flash-Lite | 🟡 | Rules are instant and free; the fallback keeps working if Groq rate-limits |
 | D8 | Gradium STT must set `delay_in_frames` ≈ 8–16 | ✅ | Default came back as 50 = 4 s lag |
@@ -41,6 +43,9 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 | Q2 | Primary voice: Gradium pipeline or Gemini Live API? | Measure Gradium full-loop latency first |
 | Q3 | Hidden "full solve" feature: yes/no? | Must not be the headline |
 | Q4 | Graph tool in the demo or nice-to-have? | |
+| Q10 | With the mic on, keep the Groq gate to skip thinking aloud, or rules-only filter? | Mic button (D15) handles most cases |
+| Q11 | Auto-turn-off the mic after a long silence? | e.g. 60 s; protects credits and privacy |
+| Q12 | Circle-detection thresholds | Tune on the tablet with real strokes |
 | Q5 | Billing on the Gemini demo project? | Higher limits, ~$1–2; needs a budget alert |
 | Q6 | Tutor voice | Choose in Gradium Studio |
 | Q7 | Final owner per area | Proposed: Canvas / Agent / Voice / Math+Demo |

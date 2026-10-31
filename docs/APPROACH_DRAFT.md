@@ -8,9 +8,9 @@
 ## 1. Product scope
 
 ### Must have (the demo)
-1. PDF shown on a locked layer, with pen and **Circle tool** on top
+1. PDF shown on a locked layer, with the pen on top. **No circle button**: circles and writing are detected automatically (see §3a)
 2. Circle → crop + PDF text extraction → Gemini explains
-3. Streaming voice in and out, with **interruption** (barge-in) and a **push-to-talk** fallback
+3. Streaming voice in and out, controlled by **one mic on/off button**, with **interruption** (barge-in)
 4. **Hint ladder** (nudge → hint → worked step) + math-engine step check + green ✓
 
 ### Nice to have
@@ -57,15 +57,36 @@ A full solve may exist as a hidden power feature, **never** the headline. **[OPE
    - **Ink-only image** (export only `author: 'student'` shapes in the box)
    - **Combined crop** (PDF + ink) for context
 
-**Circle detection:** an explicit **Circle tool** (lasso) + auto-detect of closed loops around content. If ambiguous, ask "this step or the whole problem?"
+---
+
+## 3a. How the student gives input (decided, see D15 and D16)
+
+There is exactly **one control**: the **mic button**. Everything else happens by just using the pen.
+
+### Talking: mic on/off button
+- The student **taps the mic button to start talking** to the tutor, and **taps it again to stop** it listening.
+- **Mic on:** the app listens, streams speech to STT, and treats what's said as meant for the tutor. A clear "● Listening" state is shown.
+- **Mic off:** **no audio is captured or sent.** The tutor never hears background talk, self-talk or other people. This also saves Gradium credits and avoids false triggers in noisy rooms.
+- The tutor's spoken reply plays whether the mic is on or off.
+- **Barge-in:** if the mic is on and the student starts speaking while the tutor is talking, the tutor stops and listens.
+- [OPEN] Should the mic turn itself off after a long silence (e.g. 60 s), to protect credits and privacy?
+
+### Writing and circling: no button, detected automatically
+- The pen is always just a pen. The app watches the strokes and decides what each one is:
+  - **Circle:** a closed (or nearly closed) loop whose area surrounds existing content (PDF text or ink). → Treat as "this is the part I'm asking about": crop it and attach it to the next question. The stroke is tagged `kind: 'circle'`.
+  - **Writing:** everything else → normal ink (`kind: 'ink'`), used for reading the student's lines and checking steps.
+- Detection idea (to tune on the tablet): stroke start and end points within ~15% of the stroke's size, the path mostly encloses a region, and that region overlaps text or ink. Big loops around a whole problem and small loops around one term both count.
+- If a loop is ambiguous, keep it as ink and, when the student asks, say "this step, or the whole problem?"
+- A circle by itself **does not** make the tutor speak. It marks the context. The tutor responds when the student asks with the mic on (or, if we keep it, after the 3 s writing pause).
 
 ---
 
 ## 4. The agent loop
 
 ```
-trigger (circle | voice question | 3 s pause)
-  → gate: is this for me?            (rules → Groq → Flash-Lite fallback)
+trigger (question while mic is on | 3 s writing pause)
+  context: latest auto-detected circle + recent lines
+  → light filter: skip fillers ("hmm", "okay")   (see §6)
   → planner (Gemini Flash, tool-calling, streaming)
        tools: readInk, checkStep, plot, setHintLevel, writeStep, mark
   → speak (stream sentences to TTS) + act on canvas
@@ -83,14 +104,14 @@ trigger (circle | voice question | 3 s pause)
 
 Target: **< 3 s** from end of question to first spoken word (ideally much less).
 
-1. **Local VAD** (`@ricky0123/vad-web`, Silero) in the browser: only send audio while someone is speaking. This saves Gradium credits.
-2. **Gradium STT over WebSocket**, with `delay_in_frames` around **8–16**. The default we saw was 50 = **4 s lag**. See [TEST_RESULTS.md](TEST_RESULTS.md).
-3. **End of turn:** Gradium's semantic VAD. The last `vad` horizon's `inactivity_prob` stays above about 0.5–0.7 for a few steps. Tune on the tablet.
-4. **Gate** (~270 ms on Groq).
-5. **Instant acknowledgement** (~300 ms): play "Mm, let me look…" while Gemini works.
-6. **Stream Gemini → Gradium TTS sentence by sentence.**
-7. **Barge-in:** if the mic detects speech while TTS plays, stop audio immediately and listen.
-8. **Push-to-talk button** always available (noisy halls).
+1. **Mic button on** → open the Gradium STT WebSocket (with a fresh token). **Mic off** → close it and stop capturing audio.
+2. **Local VAD** (`@ricky0123/vad-web`, Silero) in the browser while the mic is on: only send audio while someone is actually speaking. This saves Gradium credits.
+3. **Gradium STT over WebSocket**, with `delay_in_frames` around **8–16**. The default we saw was 50 = **4 s lag**. See [TEST_RESULTS.md](TEST_RESULTS.md).
+4. **End of turn:** Gradium's semantic VAD. The last `vad` horizon's `inactivity_prob` stays above about 0.5–0.7 for a few steps. Tune on the tablet.
+5. **Light filter** (instant, rules only): ignore fillers. See §6.
+6. **Instant acknowledgement** (~300 ms): play "Mm, let me look…" while Gemini works.
+7. **Stream Gemini → Gradium TTS sentence by sentence.**
+8. **Barge-in:** if the mic is on and the student speaks while TTS plays, stop audio immediately and listen.
 
 **Browser auth:** Next.js API route mints a **single-use Gradium token** (`GET /api/api-keys/token`) per WebSocket. The key never reaches the browser. This avoids Vercel's no-WebSocket limitation.
 
@@ -100,7 +121,10 @@ Target: **< 3 s** from end of question to first spoken word (ideally much less).
 
 ## 6. "Is this for me?" gate
 
-Order:
+> **Changed by D15:** the mic button now tells the app the student is talking to it, so the gate is **no longer the main filter**. With the mic on, speech is assumed to be for the tutor.
+> What stays: a **rules-only filter** for fillers ("hmm", "okay", "wait"). [OPEN] Whether to keep the Groq check as an extra layer for thinking aloud while the mic is on (e.g. "okay so u equals x"). The tested prompt and results are kept in [prompts/gate-prompt.md](prompts/gate-prompt.md) in case we need it.
+
+Original plan (kept for reference). Order:
 1. **Rules (no API call):**
    - Obvious yes: starts with "draft", or circled within ~10 s and question-shaped
    - Obvious no: fillers ("hmm", "okay"), or matches PDF text being read aloud
@@ -193,7 +217,10 @@ export const keys = {
 
 - [ ] Final scope cut: is the graph tool in the demo?
 - [ ] Gradium WebSocket pipeline vs. Gemini Live API as primary voice
-- [ ] Jev vs. Groq for the gate (currently Groq)
+- [ ] Jev vs. Groq for the gate (currently Groq). Now lower priority: the mic button replaces most of the gate's job
+- [ ] Keep the Groq gate while the mic is on (to skip thinking aloud), or rules only?
+- [ ] Auto-turn-off the mic after a long silence? How long?
+- [ ] Circle detection thresholds (closure, enclosed area, overlap with content), to tune on the tablet
 - [ ] Include a hidden "full solve" or not
 - [ ] Best `delay_in_frames` value (8 / 12 / 16), to test on the tablet
 - [ ] Tutor voice ID (choose in Gradium Studio)

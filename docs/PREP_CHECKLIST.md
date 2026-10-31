@@ -31,7 +31,8 @@ Goal: arrive with everything around the code ready, so we start building feature
 - [ ] Gradium **WebSocket from iPad Safari** with a browser token
 - [ ] Gradium TTS: choose the tutor voice; note its ID
 - [x] Groq gate: 14/14, ~266 ms
-- [ ] Gate: 40–50 real sentence set
+- [ ] Gate: 40–50 real sentence set (lower priority now that the mic button exists, see D15)
+- [ ] Circle detection: collect real circle vs. writing strokes from all 4 of us on the tablet
 - [ ] Gemini Live API: one test as backup voice
 - [ ] Silero VAD (`@ricky0123/vad-web`) in **iPad Safari**
 - [ ] tldraw + Apple Pencil: smoothness, palm rejection, pinch-zoom vs pen
@@ -43,7 +44,7 @@ Record all numbers in [TEST_RESULTS.md](TEST_RESULTS.md).
 ## 3. Hardware and venue kit
 
 - [ ] Tablet(s) + stylus, fully charged, chargers
-- [ ] **Headset with mic** (an always-on mic + speaker = echo problems)
+- [ ] **Headset with mic** (mic + speaker in a loud hall = echo and noise problems)
 - [ ] Mobile hotspot with data (venue Wi-Fi may block WebSockets)
 - [ ] Backup laptop that runs everything locally
 - [ ] Extension board, cables, screen-mirroring/HDMI adapter

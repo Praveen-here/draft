@@ -11,8 +11,8 @@ A math tutor app for an **iPad or Android tablet**.
 
 1. The student **opens their homework PDF** in the app.
 2. They **write on it with a stylus**, as on paper.
-3. When stuck, they **circle** the part they don't understand.
-4. They **ask out loud**: "why is there a minus here?"
+3. When stuck, they **circle** the part they don't understand, with the same pen. There's no circle button; the app notices the circle by itself.
+4. They **tap the mic button** and **ask out loud**: "why is there a minus here?" Tapping it again stops the app listening.
 5. ∂raft **looks at what was circled, listens, and explains that exact step out loud**, like a friend sitting next to them.
 6. It gives **hints, not the full answer**, then lets the student try the next line and **checks it with a math engine**.
 
@@ -36,6 +36,8 @@ A math tutor app for an **iPad or Android tablet**.
 | **KaTeX** | Displays math nicely in explanation cards | Neat handwriting | Free |
 | **Vercel** | Puts the app online | The building it lives in | Free |
 
+**The only button the student needs is the mic button.** Mic on means "I'm talking to you"; mic off means the app hears nothing. Because of this, the "doorman" (Groq) is now just a backup, not a must-have.
+
 **Jev (TypeSafe):** in our slides as the "doorman", but it needs a $5 top-up. Groq did the same job for free in our tests (14/14 correct, ~270 ms), so **Groq is the plan for now**. See [DECISIONS.md](DECISIONS.md).
 
 ---
@@ -43,14 +45,11 @@ A math tutor app for an **iPad or Android tablet**.
 ## 3. How one doubt flows through the app
 
 ```
-Student circles a step  ─┐
-Student speaks          ─┼─►  Gradium turns speech into text
-                         │
+Student circles a step with the pen  ──►  app detects "that's a circle"
+                                          and remembers that area
+Student taps 🎙 mic ON and speaks    ──►  Gradium turns speech into text
+                         │                (mic OFF = app hears nothing)
                          ▼
-               Groq: "Is this meant for me?"
-                 │ no → stay quiet
-                 │ yes
-                 ▼
      Gemini looks at: the circled area + what was said
      + the earlier lines → finds the real doubt → plans
                  │
@@ -113,9 +112,9 @@ Step-by-step: [SETUP_GUIDE.md](SETUP_GUIDE.md).
 
 | Person | Area |
 |---|---|
-| A | **Canvas**: PDF layer, pen, circle tool, cropping, drawing tutor ink |
+| A | **Canvas**: PDF layer, pen, automatic circle detection, cropping, drawing tutor ink |
 | B | **Agent**: Gemini planner, tools, hint ladder, memory |
-| C | **Voice**: microphone, Gradium streaming, interruptions, Groq gate |
+| C | **Voice**: mic on/off button, Gradium streaming, interruptions |
 | D | **Math + demo**: math checker, graphs, math display, demo script and pitch |
 
 ---
@@ -129,5 +128,6 @@ Step-by-step: [SETUP_GUIDE.md](SETUP_GUIDE.md).
 | Gemini and the math engine disagree | Trust the engine, retry once, otherwise say "I'm not sure" |
 | Gemini limit reached | Switch to Flash-Lite |
 | Gradium down | Gemini TTS, then the browser's built-in voice; Groq Whisper for speech-to-text |
-| Noisy hackathon hall | Headset + **push-to-talk button** |
+| Noisy hackathon hall | Headset; keep the **mic off** except while asking |
+| A normal stroke is mistaken for a circle (or the reverse) | Treat unclear loops as writing; ask "this step, or the whole problem?" when the student asks |
 | Venue Wi-Fi bad | Phone hotspot + a recorded backup demo video |
