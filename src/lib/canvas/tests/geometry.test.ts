@@ -169,3 +169,64 @@ test("unreadable, malformed and oversized recognition replies never become line 
   }
   assert.deepEqual(validateInk(["  x + C  "]), ["x + C"]);
 });
+
+test("close writing rows stay separate despite tall letters and plus signs", () => {
+  const row = (prefix: string, x: number, y: number) => [
+    { id: prefix + "a", bbox: { x, y: y + 5, w: 24, h: 30 } },
+    { id: prefix + "plus-v", bbox: { x: x + 45, y: y + 5, w: 3, h: 25 } },
+    { id: prefix + "plus-h", bbox: { x: x + 36, y: y + 17, w: 24, h: 3 } },
+    { id: prefix + "b", bbox: { x: x + 75, y: y - 8, w: 24, h: 43 } },
+  ];
+  for (const scale of [0.5, 1, 2]) for (const offset of [0, 10, 30]) for (const reverse of [false, true]) {
+    const strokes = [...row("upper-", 0, 0), ...row("lower-", offset, 35)].map(({ id, bbox }) => ({ id,
+      bbox: { x: (bbox.x + 600) * scale, y: (bbox.y - 200) * scale, w: bbox.w * scale, h: bbox.h * scale },
+    }));
+    const lines = groupIntoLines(reverse ? strokes.reverse() : strokes);
+    assert.equal(lines.length, 2);
+    assert(lines.every((line) => line.shapeIds.every((id) => id.startsWith(line.shapeIds[0].split("-")[0]))));
+  }
+});
+
+test("writing above a larger letter is not its exponent unless it is raised to the right", () => {
+  const lines = groupIntoLines([
+    { id: "upper-row", bbox: { x: 0, y: 0, w: 20, h: 20 } },
+    { id: "lower-row", bbox: { x: 0, y: 40, w: 24, h: 40 } },
+    { id: "power", bbox: { x: 24, y: 22, w: 8, h: 10 } },
+  ]);
+  assert.equal(lines.length, 2);
+  assert.deepEqual(lines.find((line) => line.shapeIds.includes("upper-row"))?.shapeIds, ["upper-row"]);
+  assert.deepEqual(new Set(lines.find((line) => line.shapeIds.includes("lower-row"))?.shapeIds), new Set(["lower-row", "power"]));
+});
+
+test("a full-sized plus sign is not a superscript of writing on the next row", () => {
+  const lines = groupIntoLines([
+    { id: "plus-h", bbox: { x: 42, y: 17, w: 26, h: 1 } },
+    { id: "plus-v", bbox: { x: 55, y: 4, w: 1, h: 27 } },
+    { id: "lower-x", bbox: { x: 0, y: 35, w: 24, h: 34 } },
+  ]);
+  assert.equal(lines.length, 2);
+  assert.deepEqual(lines.find((line) => line.shapeIds.includes("lower-x"))?.shapeIds, ["lower-x"]);
+});
+
+test("a standalone slanted a+b does not split when its b shifts a few pixels", () => {
+  for (const shift of [-3, 0, 3, 6, 12]) {
+    const lines = groupIntoLines([
+      { id: "a", bbox: { x: 394, y: 333, w: 94, h: 121 } },
+      { id: "plus-v", bbox: { x: 500, y: 313, w: 34, h: 73 } },
+      { id: "plus-h", bbox: { x: 486, y: 327, w: 70, h: 40 } },
+      { id: "b", bbox: { x: 540, y: 227 + shift, w: 100, h: 94 } },
+    ]);
+    assert.equal(lines.length, 1);
+  }
+});
+
+test("existing members tolerate small spacing changes but still detach when moved far away", () => {
+  const source = [
+    { id: "a", bbox: { x: 0, y: 5, w: 24, h: 30 }, equationId: "source", previousEquationId: "source" },
+    { id: "plus-v", bbox: { x: 45, y: 5, w: 3, h: 25 }, equationId: "source", previousEquationId: "source" },
+    { id: "plus-h", bbox: { x: 36, y: 17, w: 24, h: 3 }, equationId: "source", previousEquationId: "source" },
+  ];
+  const b = { id: "b", bbox: { x: 98, y: -8, w: 24, h: 43 }, previousEquationId: "source" };
+  assert.equal(groupIntoLines([...source, b]).length, 1);
+  assert.equal(groupIntoLines([...source, { ...b, bbox: { ...b.bbox, x: 300 } }]).length, 2);
+});

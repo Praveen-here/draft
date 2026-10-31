@@ -3,12 +3,17 @@ import { overlap, union, validBox } from "./geometry";
 
 /** A line of the student's writing: the strokes on roughly the same row. */
 export type InkLine = { shapeIds: string[]; bbox: BBox };
-type InkStroke = { id: string; bbox: BBox; equationId?: string };
+type InkStroke = { id: string; bbox: BBox; equationId?: string; previousEquationId?: string };
 
 /** Groups student strokes into lines of writing, top to bottom. */
 export function groupIntoLines(strokes: InkStroke[]): InkLine[] {
   const ink = strokes.filter((stroke) => validBox(stroke.bbox));
   const slopes = writingSlopes(ink);
+  // A plus sign's horizontal arm is neither a fraction bar nor a tiny superscript.
+  const plusArms = ink.map(({ bbox: bar }, i) => bar.w >= bar.h * 2 && ink.some(({ bbox: box }, j) =>
+    j !== i && box.w < bar.w * 0.65 && box.h > bar.h * 2 &&
+    box.x + box.w / 2 > bar.x && box.x + box.w / 2 < bar.x + bar.w &&
+    box.y < bar.y && box.y + box.h > bar.y + bar.h));
   const roots = ink.map((_, i) => i);
   const labels = ink.map((stroke) => stroke.equationId);
   const root = (i: number): number => {
@@ -39,16 +44,20 @@ export function groupIntoLines(strokes: InkStroke[]): InkLine[] {
     const gapY = Math.max(a.y - b.y - b.h, b.y - a.y - a.h, 0);
     const height = Math.max(a.h, b.h);
     const reach = Math.max(24, Math.min(Math.max(a.w, a.h), Math.max(b.w, b.h)) * 1.5);
+    const alignment = Math.max(height * 0.35, Math.min(a.h, b.h) * 0.65);
+    // Existing neighbours get a little slack; new writing on the next row does not.
+    const slack = ink[i].previousEquationId && ink[i].previousEquationId === ink[j].previousEquationId
+      ? Math.max(6, Math.min(a.h, b.h) * 0.25) : 0;
     const small = a.h < b.h ? a : b, base = a.h < b.h ? b : a;
-    const superscript = small.h <= base.h * 0.7 && small.x >= base.x &&
+    const superscript = !plusArms[a.h < b.h ? i : j] && small.h <= base.h * 0.7 && small.x >= base.x + base.w * 0.5 &&
       small.y + small.h / 2 < base.y && gapY <= base.h * 0.5;
-    if (gapX <= reach && (superscript || (gapY <= Math.max(3, height * 0.2) &&
-      Math.abs(a.y + a.h / 2 - b.y - b.h / 2) <= height * 0.75))) join(i, j);
+    if (gapX <= reach + slack && (superscript || (gapY <= Math.max(3, height * 0.2) + slack &&
+      Math.abs(a.y + a.h / 2 - b.y - b.h / 2) <= alignment + slack))) join(i, j);
   }
 
   // A fraction bar joins nearby writing above AND below it, including slanted trackpad bars.
   ink.forEach(({ bbox: bar }, i) => {
-    if (bar.w < bar.h * 2) return;
+    if (bar.w < bar.h * 2 || plusArms[i]) return;
     const above: number[] = [], below: number[] = [];
     ink.forEach(({ bbox: box }, j) => {
       if (i === j || box.x >= bar.x + bar.w || box.x + box.w <= bar.x) return;
@@ -89,19 +98,21 @@ function writingSlopes(ink: InkStroke[]): number[] {
         Math.min(a.h, b.h) < Math.max(a.h, b.h) * 0.6 || dx > Math.max(a.h, b.h) * 3) return [];
       return [{ x: ax + dx / 2, y: ay + dy / 2, slope: dy / dx, distance: Math.hypot(dx, dy) }];
     }).sort((a, b) => a.distance - b.distance || a.slope - b.slope);
-    return candidates.slice(0, 1);
+    return candidates.slice(0, 2).map((link, index) => ({ ...link, primary: index === 0 }));
   });
   return ink.map(({ bbox }) => {
     const x = bbox.x + bbox.w / 2, y = bbox.y + bbox.h / 2;
     const nearby = links.map((link) => ({ ...link, gap: Math.hypot(link.x - x, link.y - y) }))
       .filter((link) => link.gap <= Math.max(bbox.w, bbox.h, link.distance) * 3)
-      .sort((a, b) => a.gap - b.gap || a.slope - b.slope).slice(0, 6).map((link) => link.slope).sort((a, b) => a - b);
+      .sort((a, b) => a.gap - b.gap || a.slope - b.slope);
     // Pick a repeated direction; averaging conflicting row directions invents a false baseline.
-    const fits = nearby.map((slope) => {
-      const aligned = nearby.filter((candidate) => Math.abs(candidate - slope) < 0.4);
+    const fit = (directions: number[]) => directions.map((slope) => {
+      const aligned = directions.filter((candidate) => Math.abs(candidate - slope) < 0.4);
       return { count: aligned.length, slope: aligned.reduce((a, b) => a + b, 0) / aligned.length };
-    }).sort((a, b) => b.count - a.count || Math.abs(a.slope) - Math.abs(b.slope));
-    const best = fits[0];
+    }).sort((a, b) => b.count - a.count || Math.abs(a.slope) - Math.abs(b.slope))[0];
+    let best = fit(nearby.filter((link) => link.primary).slice(0, 6).map((link) => link.slope));
+    // A third glyph can resolve an uneven short row; it must not override an established baseline.
+    if (!best || best.count < 2) best = fit(nearby.slice(0, 8).map((link) => link.slope));
     return best && best.count >= 2 && Math.abs(best.slope) >= 0.25 ? best.slope : 0;
   });
 }

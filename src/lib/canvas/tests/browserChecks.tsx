@@ -286,6 +286,20 @@ export async function runCanvasChecks(editor: Editor, api: CanvasHandle, control
   const symbolId = sourceIds.toSorted((a, b) => shapeBox(editor, editor.getShape(b as TLShapeId)!).x -
     shapeBox(editor, editor.getShape(a as TLShapeId)!).x)[0] as TLShapeId;
   const symbol = editor.getShape(symbolId)!;
+  const homeOrigin = symbol.meta.equationFragmentOf;
+  const homeBox = shapeBox(editor, symbol);
+  const beforeNudgeCalls = controls.readCount();
+  editor.markHistoryStoppingPoint("nudge symbol fixture");
+  editor.updateShape({ id: symbolId, type: "draw", x: symbol.x + 6, y: symbol.y + 3 });
+  await api.readInk();
+  check(api.getEquations().length === 3 && api.getEquations().some((line) =>
+    line.shapeIds.length === sourceIds.length && sourceIds.every((id) => line.shapeIds.includes(id))) &&
+    controls.readCount() === beforeNudgeCalls + 1, "A small symbol move split its equation or reread unrelated ink.");
+  editor.undo();
+  await api.readInk();
+  check(controls.readCount() === beforeNudgeCalls + 1, "Undoing a small move discarded its original cache.");
+  pass("Small symbol moves keep their equation together and read only the changed arrangement");
+
   let changedReads = 0;
   controls.setReader(async () => ["changed " + ++changedReads]);
   editor.markHistoryStoppingPoint("detach symbol fixture");
@@ -295,6 +309,9 @@ export async function runCanvasChecks(editor: Editor, api: CanvasHandle, control
     api.getEquations().some((line) => line.shapeIds.length === 1 && line.shapeIds[0] === symbolId),
     "Detaching a symbol kept it pinned to its source or reread unrelated equations.");
   const splitSource = api.getEquations().find((line) => line.shapeIds.some((id) => sourceIds.includes(id) && id !== symbolId))!;
+  const fragmentOf = editor.getShape(symbolId)!.meta.equationFragmentOf;
+  check(typeof fragmentOf === "string" && sourceIds.every((id) => editor.getShape(id as TLShapeId)?.meta.equationFragmentOf === fragmentOf),
+    "Automatic split pieces lost their shared origin.");
   pass("Detaching a symbol reads only its source and the detached piece");
 
   const afterSplitCalls = controls.readCount();
@@ -304,10 +321,41 @@ export async function runCanvasChecks(editor: Editor, api: CanvasHandle, control
     line.latex === beforeBoxes[0].latex) && controls.readCount() === afterSplitCalls, "Undo did not restore the original equation and cache.");
   editor.redo();
   await api.readInk();
-  check(api.getEquations().length === 4 && controls.readCount() === afterSplitCalls, "Redo reread the previously recognised split.");
+  check(api.getEquations().length === 4 && controls.readCount() === afterSplitCalls &&
+    editor.getShape(symbolId)?.meta.equationFragmentOf === fragmentOf, "Redo lost the split origin or reread the previously recognised split.");
+  pass("Undo and redo restore membership and recognised arrangements without calls");
+
+  const detachedBlock = editor.getShape(block.id)!;
+  editor.markHistoryStoppingPoint("move split block fixture");
+  editor.updateShape({ id: block.id, type: "group", x: detachedBlock.x + 80, y: detachedBlock.y + 40 });
+  await api.readInk();
+  check(api.getEquations().length === 4 && controls.readCount() === afterSplitCalls,
+    "Moving split pieces together changed their boundaries or repeated recognition.");
   editor.undo();
   await api.readInk();
-  pass("Undo and redo restore membership and recognised arrangements without calls");
+  pass("Moving automatic split pieces together preserves their recognition");
+
+  const returning = editor.getShape(symbolId)!;
+  const returnBox = shapeBox(editor, returning);
+  editor.markHistoryStoppingPoint("return detached symbol fixture");
+  editor.updateShape({ id: symbolId, type: "draw", x: returning.x + homeBox.x - returnBox.x, y: returning.y + homeBox.y - returnBox.y });
+  await api.readInk();
+  check(api.getEquations().length === 3 && api.getEquations().some((line) => line.shapeIds.includes(symbolId) &&
+    line.latex === beforeBoxes[0].latex) && controls.readCount() === afterSplitCalls &&
+    sourceIds.every((id) => editor.getShape(id as TLShapeId)?.meta.equationFragmentOf === homeOrigin),
+    "Returning a detached symbol did not reconnect with its original cached equation: " + JSON.stringify({
+      lines: api.getEquations(), calls: controls.readCount() - afterSplitCalls, homeOrigin,
+      fragments: sourceIds.map((id) => editor.getShape(id as TLShapeId)?.meta.equationFragmentOf),
+    }));
+  editor.undo();
+  await api.readInk();
+  check(api.getEquations().length === 4 && editor.getShape(symbolId)?.meta.equationFragmentOf === fragmentOf,
+    "Undoing a return lost the automatic split origin.");
+  editor.redo();
+  await api.readInk();
+  check(api.getEquations().length === 3 && controls.readCount() === afterSplitCalls,
+    "Redoing a return did not restore the cached complete equation.");
+  pass("Returning a detached symbol reconnects its equation; return, undo and redo use the cache");
 
   const destination = api.getEquations().find((line) => line.shapeIds.includes(beforeBoxes[1].shapeIds[0]))!;
   const restoredSymbol = editor.getShape(symbolId)!;
@@ -394,6 +442,19 @@ export async function runCanvasChecks(editor: Editor, api: CanvasHandle, control
   check(api.getEquations().length === 2 && controls.readCount() === beforeNearCalls,
     "Moving a whole ungrouped equation near another merged its membership or repeated recognition.");
   pass("Whole ungrouped equations keep their identity even when moved beside another");
+
+  editor.deleteShapes(studentInk(editor));
+  const beforeRows = controls.readCount();
+  const rows = [addLine(editor, 110), addLine(editor, 145)];
+  await api.readInk();
+  const closeLines = api.getEquations();
+  check(closeLines.length === 2 && rows.every((ids) => closeLines.some((line) =>
+    line.shapeIds.length === ids.length && ids.every((id) => line.shapeIds.includes(id)))) &&
+    controls.readCount() === beforeRows + 2, "Closely spaced rows mixed their strokes or recognition requests: " + JSON.stringify({
+      lines: closeLines, calls: controls.readCount() - beforeRows,
+      rows: rows.map((ids) => ids.map((id) => ({ id, bbox: shapeBox(editor, editor.getShape(id)!) }))),
+    }));
+  pass("Closely spaced rows with plus signs keep separate crops and recognition");
   controls.setReader(async () => ["x + C"]);
   focusSample(editor);
 }

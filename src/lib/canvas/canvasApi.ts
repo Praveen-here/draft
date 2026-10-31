@@ -210,7 +210,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
     editor.sideEffects.registerAfterCreateHandler("shape", watchStroke),
     editor.sideEffects.registerBeforeChangeHandler("shape", (before, after) => {
       // Grouping and undo/redo restore membership directly in the same atomic operation.
-      if (!reconciling && before.meta.equationId !== after.meta.equationId) {
+      if (!reconciling && (before.meta.equationId !== after.meta.equationId || before.meta.equationFragmentOf !== after.meta.equationFragmentOf)) {
         motion = undefined;
         membershipChanged = true;
       }
@@ -222,7 +222,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
       return after;
     }),
     editor.sideEffects.registerAfterChangeHandler("shape", (before, after) => {
-      if (before.meta.equationId !== after.meta.equationId) { activity(); return; }
+      if (before.meta.equationId !== after.meta.equationId || before.meta.equationFragmentOf !== after.meta.equationFragmentOf) { activity(); return; }
       if (before.props === after.props && before.x === after.x && before.y === after.y &&
         before.rotation === after.rotation && before.parentId === after.parentId) return;
       if (after.type === "group") {

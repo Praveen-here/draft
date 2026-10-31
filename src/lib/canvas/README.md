@@ -38,11 +38,16 @@ selection uses the existing `circle` event and `getLatestCircle()` context chann
 its ink crop and recent lines contain only the selected equations, even when another
 equation lies between them. Selecting and grouping cached equations makes no provider
 calls. Moving a whole equation or block reuses its result at the new coordinates,
-even while recognition is already running. Partial moves recalculate membership
-after dropping and read only uncached changed pieces; a symbol transferred to another
+even while recognition is already running. Small symbol moves tolerate normal spacing
+changes. Moving a piece far away splits it; returning it reconnects its source equation.
+Partial moves recalculate membership after dropping and read only uncached changed pieces; a symbol transferred to another
 equation follows that equation's native layer group. The cache retains the 128 most
-recent recognised arrangements for undo/redo. Equation boundaries are stored in stroke
-metadata and participate in undo; the native group handles movement.
+recent recognised arrangements for returns and undo/redo. Equation boundaries and
+automatic split origins are stored in stroke metadata and participate in undo;
+the native group handles movement. Explicitly grouped equations stay separate.
+
+Automatic splits made in an older running session have no saved origin. Undo that
+old split or draw fresh ink when testing reconnection; reloading would erase the session.
 
 The normal `Canvas` component creates and disposes the API. Its optional
 `onReady(api, editor)` callback hands the API to the lead's session wiring; return a

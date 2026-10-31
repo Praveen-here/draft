@@ -1,6 +1,6 @@
 # Part A handoff
 
-Local implementation on **part-a/canvas**, 31 October 2026. The user confirmed the
+Local implementation on **part-a/canvas**, updated 1 November 2026. The user confirmed the
 updated branch scope, including student handwriting and handwriting-to-LaTeX.
 Target remains **20 hours for the project and ₹0 additional spending**.
 
@@ -54,10 +54,10 @@ retries or paid fallbacks; quota exhaustion is shown in the canvas without losin
 
 ## Validation
 
-- 22 Node unit checks: loop geometry, line grouping, slanted writing, placement, recognition validation,
+- 27 Node unit checks: loop geometry, line grouping, slanted writing, placement, recognition validation,
   server transport, separate dev/demo credentials, body/image limits, quota/error handling,
   cancellation and deadlines.
-- 32 browser checks: actual PDF rendering/text positions including rotation, individual-term selection,
+- 36 browser checks: actual PDF rendering/text positions including rotation, individual-term selection,
   separate PNG crops, grouped lines, caching, edits within unchanged bounds, tutor actions,
   graph lifecycle, clearing/undo preservation, reading feedback and late-result cancellation,
   unreadable-line recovery, student highlights, deleting selections, Layers range selection,
@@ -105,6 +105,14 @@ retries or paid fallbacks; quota exhaustion is shown in the canvas without losin
   No new requests start while the pointer is held down. All 22 Node and 32 browser checks
   passed, plus native Chrome mouse drags of an equation, its group and undo, with **zero
   extra recognition requests**. Provider replies were mocked; this update used no live quota.
+- Small-move and row-separation regression: normal spacing changes preserve an equation,
+  while distant pieces split and retain their origin so they can reconnect when returned.
+  Returning to the original arrangement, undo and redo reuse the recognition cache;
+  moving automatic split pieces together also preserves it. Close rows stay separate
+  despite tall letters and plus signs; a plus arm cannot masquerade as a fraction bar
+  or a superscript on another row. All 27 Node and 36 browser checks passed. Native mouse
+  input verified the small move, distant split, return and undo/redo, with no calls on
+  return/undo/redo. These checks mocked recognition and used **zero live provider calls**.
 
 Browser recognition checks use a fixture reader; server tests mock Gemini. Graph tests
 verify the host, not Part D's plotting or math engine. The development test page is
@@ -119,6 +127,8 @@ unavailable in production.
   Controlled live checks establish the integration, not universal handwriting accuracy.
   Automatic equation boundaries use stroke geometry; tightly overlapping writing
   still needs calibration with the team's samples.
+  Splits made before automatic origins were introduced cannot infer their old parent;
+  undo that old split or draw fresh ink to test reconnection without reloading the session.
   There is no per-stroke provider request; settled lines are cached and cancelled
   when their ink changes. Cached history is limited to 128 recent arrangements; an evicted
   arrangement needs recognition again.
