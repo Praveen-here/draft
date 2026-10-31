@@ -1,0 +1,68 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 842 >>
+stream
+BT /F2 20 Tf 64 740 Td (Practice Sheet 3: Functions and Calculus) Tj ET
+BT /F1 10 Tf 64 718 Td (Name: ____________________          Class 12          Date: ________) Tj ET
+BT /F2 13 Tf 64 686 Td (Section A: Graphs) Tj ET
+BT /F1 13 Tf 64 664 Td (1.  How does the graph of  y = a·x²  change as a changes?) Tj ET
+BT /F1 13 Tf 64 630 Td (2.  Find the slope of the curve  y = x²  at the point  x = 1.) Tj ET
+BT /F1 13 Tf 64 596 Td (3.  Find the area under  y = x²  between  x = 0  and  x = 2.) Tj ET
+BT /F1 13 Tf 64 562 Td (4.  Why is the derivative of  sin x  equal to  cos x ?) Tj ET
+BT /F2 13 Tf 64 518 Td (Section B: Algebra and Integration) Tj ET
+BT /F1 13 Tf 64 496 Td (5.  Solve  x² - 5x + 6 = 0.) Tj ET
+BT /F1 13 Tf 64 462 Td (6.  Find  the integral of  x·e^x dx.) Tj ET
+BT /F1 13 Tf 64 428 Td (7.  Simplify  \(x² - 9\) / \(x - 3\).) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >> >>
+endobj
+6 0 obj
+<< /Length 694 >>
+stream
+BT /F2 13 Tf 64 740 Td (Section C: Check my working) Tj ET
+BT /F1 10 Tf 64 720 Td (Each answer below has a mistake. Circle a line and ask if it's right.) Tj ET
+BT /F1 13 Tf 64 690 Td (8.  Solve  2\(x + 3\) = 14) Tj ET
+BT /F1 13 Tf 64 666 Td (       2x + 3 = 14) Tj ET
+BT /F1 13 Tf 64 644 Td (       2x = 11) Tj ET
+BT /F1 13 Tf 64 622 Td (       x = 5.5) Tj ET
+BT /F1 13 Tf 64 582 Td (9.  Differentiate  y = \(3x + 1\)²) Tj ET
+BT /F1 13 Tf 64 558 Td (       dy/dx = 2\(3x + 1\)) Tj ET
+BT /F1 13 Tf 64 518 Td (10.  Find the integral of  2x dx) Tj ET
+BT /F1 13 Tf 64 494 Td (       = x² ) Tj ET
+BT /F1 13 Tf 64 454 Td (11.  Expand  \(x + 4\)²) Tj ET
+BT /F1 13 Tf 64 430 Td (       = x² + 16) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000001150 00000 n 
+0000001286 00000 n 
+0000002031 00000 n 
+0000002128 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+2230
+%%EOF

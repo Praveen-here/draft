@@ -6,13 +6,14 @@ Last updated: 1 Nov 2026 (evening). Update this file whenever something big land
 
 ∂raft is a tablet math tutor (hackathon, Education track). The student opens a worksheet PDF, **circles** part of it with the pen and **asks** a question (voice or text). The **Agent Brain** explains with hints, never the full answer: it talks in short beats, marks the exact terms on the page, draws graphs and slides values on them while speaking, asks check questions, adapts when the student is wrong, and stays in the loop until the student solves the step. The brain is the core feature. Spec: [AGENT_BRAIN.md](AGENT_BRAIN.md). Decisions: [DECISIONS.md](DECISIONS.md) (D1–D34; open questions Q1–Q16). How to test: [TESTING.md](TESTING.md).
 
-## Where the work is: branch `integrate/all` (local, not pushed)
+## Where the work is: `main` (pushed)
 
-Everything current is on **`integrate/all`**, 10+ commits ahead of `main`. Nothing from it is pushed yet; `main` on GitHub still has brain v1 with the old chat panel.
+Everything current is on **`main`** on GitHub: on 1 Nov the lead had `integrate/all` fast-forwarded into `main` and pushed directly (no pull request). `npm run dev` on a fresh clone of `main` runs the full app (plus your own `.env.local`; `npm install` copies the pdf.js worker into `public/`).
 
 | Branch | What | Pushed? |
 |---|---|---|
-| **`integrate/all`** | **Use this.** Brain v1 + the lead's math engine + Part A's canvas + Part D's visuals + message-bubble chat + graph panel + dragging | local |
+| **`main`** | **Use this.** Brain v1 + the lead's math engine + Part A's canvas + Part D's visuals + message-bubble chat + graph panel + dragging + D35 | ✅ |
+| `integrate/all` | Same as `main` (the lead's working branch) | ✅ via `main` |
 | `main` | Brain v1 end to end (old side chat panel), docs, rules, landing | ✅ |
 | `feat/explain-cards` | Superseded: the first card UI (D30), inside `integrate/all` | local |
 | `part-d/math-visuals` | Local: the lead's math engine (`a097616`, not pushed). Remote: Part D's teammate work (`c793b3f`). Both merged into `integrate/all` | local / ✅ |
@@ -22,11 +23,11 @@ Everything current is on **`integrate/all`**, 10+ commits ahead of `main`. Nothi
 
 Leftover: `git stash list` shows `stash@{0}` (Part D files that leaked onto another branch; identical to `a097616`). Safe to `git stash drop`.
 
-**Next git steps (when the lead says so):** merge `integrate/all` into `main`, push, then teammates run `git merge origin/main` on their `part-*` branches. Their branches were built on the old scaffold, so they'll see the new contract (`note` visual, `writeStep.text`), the lesson store and the graph panel.
+**Next git steps:** teammates run `git merge origin/main` on their `part-*` branches (Part A's newer `905c632` on `part-a/canvas` is not in `main` yet). Their branches were built on the old scaffold, so they'll see the new contract (`note` visual, `writeStep.text`), the lesson store and the graph panel.
 
 ## What works today (on `integrate/all`)
 
-Run `npm run dev` → http://localhost:3000/app (Chrome/Edge) → **Open a PDF** → `samples/practice-sheet.pdf` (untracked; Q1–Q7 problems; Q8–Q11 worked answers with one planted mistake each).
+Run `npm run dev` → http://localhost:3000/app (Chrome/Edge) → **Open a PDF** → `samples/practice-sheet.pdf` (in the repo; Q1–Q7 problems; Q8–Q11 worked answers with one planted mistake each).
 
 1. **Circle** a problem (a whole line or one term) with the pen → the loop turns blue; a **message thread** appears beside it: a white bubble "What would you like to know about this?" plus four reply pills (How do I start? / Why this step? / What do these mean? / Is this right?).
 2. **Ask** by typing in the floating **ask pill** (bottom), tapping a pill, or the mic → a typing bubble, then in ~2–5 s the tutor answers **one white bubble per spoken sentence** (iMessage style, tail bottom-left; the student's bubbles are blue, tail bottom-right).
@@ -92,7 +93,7 @@ Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main
 ## Next steps (roughly in order)
 
 - [ ] **Brain uses the math engine and handwriting** (Part B): judge typed/spoken answers with `checkAnswer`; on a `line` event run `checkStep` → quiet ✓ or a gentle flag (`triggers.ts`); offer a hint after an `idle` event; `done` only when the engine agrees. This is the "agentic" core still missing.
-- [ ] Merge `integrate/all` → `main`, push (only when the lead says), teammates merge `main`.
+- [x] `integrate/all` → `main`, pushed (1 Nov). Teammates merge `origin/main`.
 - [ ] Re-run Part A's browser checks (`/app/canvas-test`), Part D's Playwright suite, and `npm run build`.
 - [ ] Gradium voice instead of the browser voice (STT `delay_in_frames` ~12).
 - [ ] Try on a real iPad: pen circles, dragging by finger/pen, the no-zoom behaviour, safe areas.
