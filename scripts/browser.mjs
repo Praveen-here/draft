@@ -9,6 +9,7 @@
 //   ask <text...>              type into the ask pill and press Enter
 //   drag x1 y1 x2 y2 [steps] [ms]  press, move, release (fast steps = a flick)
 //   scrollshot dy name         wheel-scroll, screenshot mid-scroll (name-now) and after (name-settled)
+//   wheel x y dy               wheel-scroll over a spot (e.g. the chat or the page)
 //   shot name                  screenshot to <SHOTS>/name.png
 //   eval <js>                  run JS in the page and print the result (window.editor is tldraw's editor in dev)
 //   wait ms
@@ -105,6 +106,14 @@ if (action === "open") {
   await shot(`${name}-now`);
   await sleep(800);
   await shot(`${name}-settled`);
+} else if (action === "wheel") {
+  // wheel x y dy: scroll with the mouse over a spot (the chat, or the page), in six steps like a trackpad.
+  const [x, y, dy] = args.map(Number);
+  for (let i = 0; i < 6; i++) {
+    await send("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX: 0, deltaY: dy / 6 });
+    await sleep(16);
+  }
+  await sleep(400);
 } else if (action === "eval") {
   console.log(JSON.stringify(await evaluate(args.join(" ")), null, 1));
 } else if (action === "wait") {

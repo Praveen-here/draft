@@ -24,3 +24,6 @@ next-env.d.ts
 
 # copied from pdfjs-dist on install
 public/pdf.worker.min.mjs
+
+# saved documents (PDFs/images uploaded by users), kept locally
+storage/

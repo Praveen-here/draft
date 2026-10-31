@@ -26,6 +26,10 @@ export type RawVisual = {
 };
 
 export type RawTurn = {
+  /** Short name of the skill this problem practises, e.g. "integration by parts" (kept in the learner profile). */
+  topic: string;
+  /** How the student seems on this topic right now. */
+  level: "foundation" | "developing" | "confident" | "advanced";
   kind: "next-step" | "why" | "meaning" | "check" | "show" | "answer" | "other";
   doubt: string;
   studentWas: "asking" | "correct" | "partly" | "wrong" | "unsure" | "claims-understood";
@@ -92,6 +96,8 @@ const visual = {
 export const TURN_SCHEMA = {
   type: "OBJECT",
   properties: {
+    topic: { type: "STRING", description: "short lowercase name of the skill this problem practises, e.g. integration by parts, chain rule, solving linear equations, quadratic graphs" },
+    level: str(["foundation", "developing", "confident", "advanced"]),
     kind: str(["next-step", "why", "meaning", "check", "show", "answer", "other"]),
     doubt: str(),
     studentWas: str(["asking", "correct", "partly", "wrong", "unsure", "claims-understood"]),
@@ -111,8 +117,8 @@ export const TURN_SCHEMA = {
     waitFor: str(["answer", "line", "none"]),
     question: str(),
   },
-  required: ["kind", "doubt", "studentWas", "stage", "hintLevel", "angle", "misconception", "done", "beats", "waitFor", "question"],
-  propertyOrdering: ["kind", "doubt", "studentWas", "stage", "hintLevel", "angle", "misconception", "done", "beats", "waitFor", "question"],
+  required: ["topic", "level", "kind", "doubt", "studentWas", "stage", "hintLevel", "angle", "misconception", "done", "beats", "waitFor", "question"],
+  propertyOrdering: ["topic", "level", "kind", "doubt", "studentWas", "stage", "hintLevel", "angle", "misconception", "done", "beats", "waitFor", "question"],
 };
 
 /** What the browser sends to /api/tutor. */
@@ -120,7 +126,19 @@ export type TutorRequest = {
   /** PNG data URL of the circled area (absent if nothing circled yet). */
   image?: string;
   pdfText?: string;
+  /** What the student said or typed; empty when the brain speaks up on its own (see event). */
   transcript: string;
+  /** Something the student did that the brain reacts to without being asked, e.g. a wrong line the engine caught. */
+  event?: string;
+  /** This device's learner id: the server adds what it remembers about them to the prompt, and records the turn. */
+  learnerId?: string;
+  /** The current problem (one per circle) and its printed text. */
+  problemId?: string;
+  problem?: string;
+  /** The student's written lines for this problem, each with the math engine's verdict. */
+  work?: string[];
+  /** The engine's verdict on a typed/spoken answer that was math. Overrides Gemini when they disagree. */
+  answer?: { verdict: "correct" | "wrong"; final: boolean; detail?: string };
   /** Graphs already on screen for this circle, e.g. "p1: y = a*x^2 (a = 3)". */
   graphs: string[];
   history: { role: "student" | "tutor"; text: string }[];

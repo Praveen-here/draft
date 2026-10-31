@@ -9,218 +9,134 @@ import { dragWithMomentum, type Pt } from "./drag";
 import { NOTE_TONE } from "./noteTone";
 
 const spring = { type: "spring" as const, bounce: 0, duration: 0.4 };
-/** Space between the circle and its bubbles, in screen pixels. */
-const GAP = 14;
-/** Wide screens get a graph panel on the right; narrower ones a sheet above the ask bar. */
+/** Wide screens: chat docked left, graphs in a panel on the right. Narrower: chat along the top, graphs in a sheet above the ask bar. */
 const WIDE = "(min-width: 900px)";
 
 /**
  * The tutor's things on top of the canvas, in three layers:
  * - marks on the page (a numbered outline round each explained term), moving with the page;
- * - the lesson thread as message bubbles floating beside the circle, placed in screen space so their size
- *   follows the screen, not the zoom, and moved on every camera change so they stay with the circle;
- * - graphs in their own panel, apart from the conversation.
+ * - the conversation: ONE chat for the whole document, in a panel fixed on screen (docked on the left on wide
+ *   screens, along the top on narrow ones; drag it anywhere by its "∂raft" handle, double-click to dock it
+ *   again). It never follows the canvas, so scrolling the page and scrolling the chat never fight: the wheel or
+ *   a swipe over the chat scrolls the chat, anywhere else scrolls the page;
+ * - graphs in their own panel.
+ * Nothing here is ever wiped by a new circle; ✕ on the chat only hides it.
  */
 export function TutorOverlay({ store }: { store: VisualStore }) {
   const editor = useEditor();
-  const { anchor, items, gen, safe } = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const { items, gen, safe } = useSyncExternalStore(store.subscribe, store.get, store.get);
   const reduce = !!useReducedMotion();
   const wide = useMedia(WIDE);
 
   const root = useRef<HTMLDivElement>(null);
   const page = useRef<HTMLDivElement>(null);
-  const bubbles = useRef<HTMLDivElement>(null);
+  const chat = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const dock = useRef<HTMLDivElement>(null);
-  const live = useRef({ anchor, safe });
-  live.current = { anchor, safe };
-  /** Where the student dragged the thread, as an offset from the circle's top-left (null = place it for them). */
-  const pinned = useRef<Pt | null>(null);
-  const dragging = useRef(false);
-  /** The thread's current top-left, in overlay pixels. */
-  const at = useRef<Pt>({ x: 0, y: 0 });
-  /** Room it may use: everything on screen except the bars. */
-  const limits = useRef({ left: 0, right: 0, top: 0, bottom: 0, w: 0, h: 0 });
-  /** Which way the circle went when it's off screen (zoomed or scrolled away); null while it's in view. */
-  const [away, setAway] = useState<Away>(null);
-  const awayNow = useRef<Away>(null);
+  const room = useSize(root);
+  /** Where the student dropped the chat, in overlay pixels (null = docked). */
+  const [pos, setPos] = useState<Pt | null>(null);
+  /** The student hid the chat (✕). It's kept (still mounted), and comes back with the next circle, question or answer. */
+  const [hidden, setHidden] = useState(false);
+  /** Narrow screens: where the graph sheet starts, so the chat ends above it. */
+  const [sheetTop, setSheetTop] = useState<number | null>(null);
+  /** Follow the newest message only while the student is at the bottom; reading older messages isn't interrupted. */
+  const atBottom = useRef(true);
 
   const lesson = items.find((i) => i.kind === "node" && i.id === LESSON_CARD_ID);
   const graphs = items.filter((i): i is Extract<LessonItem, { kind: "node" }> => i.kind === "node" && i.id !== LESSON_CARD_ID);
-  // Explain cards are numbered 1, 2, 3... in the order they arrive; the thread numbers its note bubbles the same way.
+  // Explain cards are numbered 1, 2, 3... in the order they arrive; the chat numbers its note bubbles the same way.
   const numbers = new Map<string, number>();
   for (const i of items) if (i.kind === "note") numbers.set(i.id, numbers.size + 1);
 
-  /** Put the bubbles beside the circle, on whichever side has room, clear of the bars and the graph panel. */
-  const place = useCallback(() => {
-    const el = bubbles.current, list = scroller.current, box = root.current;
-    const { anchor: a, safe: s } = live.current;
-    if (!el || !list || !box || !a) return;
-    const screen = editor.getViewportScreenBounds();
-    const W = screen.w, H = screen.h;
-    const c1 = editor.pageToViewport({ x: a.x, y: a.y });
-    const c2 = editor.pageToViewport({ x: a.x + a.w, y: a.y + a.h });
-    const left = s.left, right = W - s.right, top = s.top, bottom = H - s.bottom;
-
-    // The circle is off screen: the thread goes with it instead of sticking to the edge over the page,
-    // and a small "back to your question" pill points the way.
-    const gone: Away = c2.y < top + 4 ? "up" : c1.y > bottom - 4 ? "down" : c2.x < left + 4 ? "left" : c1.x > right - 4 ? "right" : null;
-    if (gone !== awayNow.current) { awayNow.current = gone; setAway(gone); }
-    el.style.opacity = gone ? "0" : "1";
-    el.style.visibility = gone ? "hidden" : "visible";
-    const fade = `opacity 180ms ease, visibility 0s linear ${gone ? 180 : 0}ms`;
-    if (gone) { el.style.transition = fade; return; }
-    // Zoomed in so the circle is bigger than the screen: place round the part that's in view.
-    const p1 = { x: Math.max(c1.x, left), y: Math.max(c1.y, top) };
-    const p2 = { x: Math.min(c2.x, right), y: Math.min(c2.y, bottom) };
-    const w = Math.max(220, Math.min(W < 640 ? W - 24 : Math.min(380, Math.max(280, W * 0.3)), right - left));
-    const content = (list.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
-    const clampX = (x: number) => Math.min(Math.max(x, left), right - w);
-    // A moved thread may shrink to ~200 px (it scrolls inside), so it can go anywhere on screen.
-    limits.current = { left, right, top, bottom, w, h: Math.min(content, 200, bottom - top) };
-
-    // The graph panel is an obstacle: bubbles go round it, never under it.
-    const d = dock.current?.getBoundingClientRect(), r = box.getBoundingClientRect();
-    const P = d && d.width ? { l: d.left - r.left, r: d.right - r.left, t: d.top - r.top, b: d.bottom - r.top } : null;
-    const hits = (x: number, y: number, h: number) => !!P && x < P.r + 8 && x + w > P.l - 8 && y < P.b + 8 && y + h > P.t - 8;
-
-    // Dragged by the student: keep their offset from the circle (so it still follows the page), on screen,
-    // and stepping out from under the graph panel if the panel lands on it.
-    if (pinned.current) {
-      let x = c1.x + pinned.current.x, y = c1.y + pinned.current.y;
-      if (!dragging.current) {
-        x = clampX(x);
-        y = Math.min(Math.max(y, top), bottom - limits.current.h);
-        if (P && hits(x, y, limits.current.h)) x = Math.max(left, Math.min(x, P.l - 12 - w));
-      }
-      at.current = { x, y };
-      el.style.transition = fade;
-      el.style.width = `${w}px`;
-      el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-      list.style.maxHeight = `${Math.max(120, bottom - Math.max(y, top))}px`;
-      return;
-    }
-
-    let MIN = 160; // smallest useful height for the thread; relaxed below when space is tight
-
-    /** A spot at x, as near yWanted as fits between minY and maxY, stepping above or below the panel if needed. */
-    const fit = (side: string, x: number, yWanted: number, minY: number, maxY: number) => {
-      if (x < left - 0.5 || x + w > right + 0.5 || maxY - minY < Math.min(content, MIN)) return null;
-      const h = Math.min(content, maxY - minY);
-      const y = Math.min(Math.max(yWanted, minY), maxY - h);
-      if (!hits(x, y, h)) return { side, x, y, room: maxY - minY };
-      if (!P) return null;
-      if (maxY - (P.b + 12) >= Math.min(content, MIN)) { // below the panel
-        const yb = Math.max(P.b + 12, minY), hb = Math.min(content, maxY - yb);
-        if (!hits(x, yb, hb)) return { side, x, y: yb, room: maxY - yb };
-      }
-      if (P.t - 12 - minY >= Math.min(content, MIN)) { // above the panel
-        const ha = Math.min(content, P.t - 12 - minY), ya = Math.max(minY, Math.min(yWanted, P.t - 12 - ha));
-        if (!hits(x, ya, ha)) return { side, x, y: ya, room: P.t - 12 - minY };
-      }
-      return null;
-    };
-    const around = () =>
-      fit("right", p2.x + GAP, p1.y - 6, top, bottom) ??
-      fit("left", p1.x - GAP - w, p1.y - 6, top, bottom) ??
-      fit("below", clampX(p1.x), p2.y + GAP, Math.max(top, p2.y + GAP), bottom) ??
-      fit("above", clampX(p1.x), p1.y - GAP - content, top, Math.min(bottom, p1.y - GAP)) ??
-      (P ? fit("below-left", Math.max(left, Math.min(clampX(p1.x), P.l - 12 - w)), p2.y + GAP, Math.max(top, p2.y + GAP), bottom) : null);
-    // Never cover the circle itself: with little space, take a smaller spot around it (the thread scrolls).
-    // No readable spot at all (e.g. zoomed in so the circle fills the screen): float a full-size card in the
-    // bottom corner away from the graph panel, over the page, rather than squeezing it into a sliver.
-    const first = around();
-    MIN = 180;
-    const floatH = Math.min(content, Math.max(220, (bottom - top) * 0.55));
-    const spot = first ?? around() ?? {
-      side: "float",
-      x: P && P.l < W / 2 ? right - w : left,
-      y: bottom - floatH,
-      room: floatH,
-    };
-
-    // Following the camera is instant; moving to another side (e.g. the graph panel opened) glides there.
-    const moved = el.dataset.side !== undefined && el.dataset.side !== spot.side && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.dataset.side = spot.side;
-    el.style.transition = moved ? `transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1), ${fade}` : fade;
-    at.current = { x: spot.x, y: spot.y };
-    el.style.width = `${w}px`;
-    el.style.transform = `translate(${Math.round(spot.x)}px, ${Math.round(spot.y)}px)`;
-    list.style.maxHeight = `${Math.max(120, spot.room)}px`;
-  }, [editor]);
-
-  // A new problem places its thread fresh.
-  useEffect(() => { pinned.current = null; }, [gen]);
-
-  /** Bring the circled problem back on screen (keeping the zoom, unless it's too big to fit). */
-  const backToCircle = () => {
-    const a = live.current.anchor;
-    if (!a) return;
-    const animation = reduce ? undefined : { duration: 320 };
-    const view = editor.getViewportPageBounds();
-    // Land it in the upper third, leaving room for the thread below it (zooming out first if it's too big).
-    if (a.w > view.w * 0.8 || a.h > view.h * 0.6) editor.zoomToBounds({ x: a.x, y: a.y, w: a.w, h: a.h * 2.6 }, { inset: 80, animation });
-    else editor.centerOnPoint({ x: a.x + a.w / 2, y: a.y + a.h / 2 + view.h * 0.18 }, { animation });
-  };
-
-  /** Drag the thread by its handle (the "∂raft" pill). Double-click the handle to let it place itself again. */
-  const grabThread = (e: PointerEvent) => {
-    const target = e.target as Element;
-    const handle = target.closest<HTMLElement>("[data-drag-handle]");
-    const a = live.current.anchor;
-    if (!handle || target.closest("button") || !root.current || !a || e.button !== 0) return;
-    e.preventDefault();
-    const circle = () => editor.pageToViewport({ x: a.x, y: a.y });
-    dragWithMomentum(e, {
-      handle,
-      root: root.current,
-      start: at.current,
-      reduce,
-      bounds: () => {
-        const l = limits.current;
-        return { minX: l.left, maxX: l.right - l.w, minY: l.top, maxY: l.bottom - l.h };
-      },
-      onStart: () => { dragging.current = true; },
-      onMove: (p) => {
-        const c = circle();
-        pinned.current = { x: p.x - c.x, y: p.y - c.y };
-        place();
-      },
-      onSettle: () => { dragging.current = false; place(); },
-    });
-  };
-
-  // Follow the camera straight on the DOM, in the same frame as the canvas: no React render per scroll frame.
+  // Only the marks move with the camera: one transform per frame, no layout work, so the page scrolls smoothly.
   useQuickReactor(
     "tutor overlay camera",
     () => {
       const { x, y, z } = editor.getCamera();
       if (page.current) page.current.style.transform = `scale(${z}) translate(${x}px, ${y}px)`;
-      place();
     },
-    [editor, place],
+    [editor],
   );
-  useLayoutEffect(place, [place, anchor, safe, items, wide]);
+
   useEffect(() => {
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [place]);
+    const hide = () => setHidden(true);
+    const show = () => setHidden(false);
+    window.addEventListener("draft:hide-chat", hide);
+    window.addEventListener("draft:show-chat", show);
+    return () => {
+      window.removeEventListener("draft:hide-chat", hide);
+      window.removeEventListener("draft:show-chat", show);
+    };
+  }, []);
 
-  // The thread grows as the tutor talks: re-place it, and keep the newest bubble in view.
+  /** Narrow screens share the height with the graph sheet: measure where it starts. */
+  const measureSheet = useCallback(() => {
+    const d = dock.current, r = root.current;
+    if (wide || !d || !r) { setSheetTop(null); return; }
+    const b = d.getBoundingClientRect();
+    setSheetTop(b.height ? b.top - r.getBoundingClientRect().top : null);
+  }, [wide]);
   useLayoutEffect(() => {
-    const list = scroller.current;
-    const content = list?.firstElementChild;
-    if (!list || !content) return;
-    const ro = new ResizeObserver(() => {
-      place();
-      list.scrollTo({ top: list.scrollHeight, behavior: reduce ? "auto" : "smooth" });
-    });
-    ro.observe(content);
+    measureSheet();
+    const d = dock.current;
+    if (!d) return;
+    const ro = new ResizeObserver(measureSheet);
+    ro.observe(d);
     return () => ro.disconnect();
-  }, [place, reduce, lesson]);
+  }, [measureSheet, graphs.length]);
 
-  // The wheel scrolls the thread or the graph panel, not the page underneath.
-  useWheelStays(scroller);
+  // The chat grows as the tutor talks: keep the newest bubble in view, if the student was already there.
+  // The scrolling part is the chat's message list ([data-chat-scroll]); the handle above it stays put.
+  useLayoutEffect(() => {
+    const list = chat.current?.querySelector<HTMLElement>("[data-chat-scroll]") ?? null;
+    scroller.current = list as HTMLDivElement | null;
+    if (!list) return;
+    const track = () => { atBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 80; };
+    const follow = () => { if (atBottom.current) list.scrollTo({ top: list.scrollHeight, behavior: reduce ? "auto" : "smooth" }); };
+    list.addEventListener("scroll", track, { passive: true });
+    const ro = new ResizeObserver(follow);
+    for (const child of Array.from(list.children)) ro.observe(child);
+    // Bubbles come and go as children: watch new ones too.
+    const mo = new MutationObserver(() => { for (const child of Array.from(list.children)) ro.observe(child); follow(); });
+    mo.observe(list, { childList: true });
+    return () => { list.removeEventListener("scroll", track); ro.disconnect(); mo.disconnect(); };
+  }, [reduce, lesson, gen]);
+
+  // The wheel over the chat scrolls the chat, never the page underneath.
+  useWheelStays(chat);
+
+  const W = room.w || 1024, H = room.h || 768;
+  const width = wide ? Math.round(Math.min(380, Math.max(300, W * 0.26))) : W - 24;
+  const bottomEdge = Math.min(H - safe.bottom, sheetTop !== null ? sheetTop - 12 : Infinity);
+  const style: React.CSSProperties = pos
+    ? { left: pos.x, top: pos.y, width: width + 24, maxHeight: Math.max(160, H - safe.bottom - pos.y) }
+    : { left: Math.max(12, safe.left) - 12, top: safe.top - 12, width: width + 24, maxHeight: Math.max(140, bottomEdge - safe.top + 24) };
+
+  /** Drag the chat by its handle (the "∂raft" pill); dropped near its dock, it docks again. */
+  const grab = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as Element;
+    const handle = target.closest<HTMLElement>("[data-drag-handle]");
+    const el = chat.current, rootEl = root.current;
+    if (!handle || target.closest("button") || !el || !rootEl || e.button !== 0) return;
+    e.preventDefault();
+    const r = rootEl.getBoundingClientRect(), b = el.getBoundingClientRect();
+    let docking = false;
+    dragWithMomentum(e.nativeEvent, {
+      handle,
+      root: rootEl,
+      start: { x: b.left - r.left, y: b.top - r.top },
+      reduce,
+      bounds: () => ({ minX: 8, maxX: r.width - el.offsetWidth - 8, minY: 72, maxY: r.height - 64 }),
+      onMove: (p) => { docking = false; setPos(p); },
+      snap: (p) => {
+        const home = { x: Math.max(12, safe.left) - 12, y: safe.top - 12 };
+        if (Math.abs(p.x - home.x) < 48 && Math.abs(p.y - home.y) < 48) { docking = true; return home; }
+        return p;
+      },
+      onSettle: (p) => setPos(docking ? null : p),
+    });
+  };
 
   return (
     <div ref={root} className="pointer-events-none absolute inset-0 z-[200] overflow-hidden" aria-live="polite">
@@ -228,69 +144,49 @@ export function TutorOverlay({ store }: { store: VisualStore }) {
         <TermMarks items={items} numbers={numbers} reduce={reduce} />
       </div>
 
-      <div ref={bubbles} className="absolute left-0 top-0" style={{ width: 0 }}>
-        <AnimatePresence>
-          {lesson && lesson.kind === "node" && (
-            <motion.div
-              key={gen}
-              initial={{ opacity: 1 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, filter: "blur(4px)" }}
-              transition={{ duration: 0.22 }}
-              style={{ transformOrigin: "top left" }}
-            >
-              <div
-                ref={scroller}
-                className="pointer-events-auto overflow-y-auto overscroll-contain [scrollbar-width:none]"
-                style={{ margin: -12, padding: 12, maskImage: FADE, WebkitMaskImage: FADE }}
-                onPointerDown={(e) => { e.stopPropagation(); grabThread(e.nativeEvent); }}
-                onDoubleClick={(e) => {
-                  if (!(e.target as Element).closest("[data-drag-handle]")) return;
-                  pinned.current = null;
-                  if (bubbles.current) bubbles.current.dataset.side = "moved"; // glide back
-                  place();
-                }}
-              >
-                <div>{lesson.node}</div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {lesson && lesson.kind === "node" && (
+        // Stays mounted while hidden, so the conversation is never lost.
+        <motion.div
+          ref={chat}
+          className="absolute flex flex-col"
+          style={{ ...style, visibility: hidden ? "hidden" : "visible", pointerEvents: hidden ? "none" : "auto" }}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, x: wide ? -24 : 0, y: wide ? 0 : -16 }}
+          animate={hidden ? { opacity: 0, scale: 0.98 } : { opacity: 1, x: 0, y: 0, scale: 1 }}
+          transition={spring}
+          onPointerDown={(e) => { e.stopPropagation(); grab(e); }}
+          onDoubleClick={(e) => { if ((e.target as Element).closest("[data-drag-handle]")) setPos(null); }}
+        >
+          <div className="flex min-h-0 flex-1 flex-col" style={{ padding: 12 }}>
+            <div key={gen} className="flex min-h-0 flex-1 flex-col">{lesson.node}</div>
+          </div>
+        </motion.div>
+      )}
 
       <AnimatePresence>
-        {away && lesson && (
+        {hidden && lesson && (
           <motion.button
-            key="back"
+            key="show"
             type="button"
-            onClick={backToCircle}
+            onClick={() => setHidden(false)}
             onPointerDown={(e) => e.stopPropagation()}
-            aria-label="Back to your question"
-            className="app-glass app-press pointer-events-auto absolute left-1/2 flex items-center gap-2 rounded-full py-1 pl-1 pr-3.5"
-            style={away === "down" ? { bottom: safe.bottom + 10 } : { top: safe.top - 50 }}
-            initial={reduce ? { opacity: 0, x: "-50%" } : { opacity: 0, x: "-50%", y: away === "down" ? 12 : -12, scale: 0.96 }}
-            animate={{ opacity: 1, x: "-50%", y: 0, scale: 1 }}
-            exit={reduce ? { opacity: 0, x: "-50%" } : { opacity: 0, x: "-50%", scale: 0.96 }}
+            aria-label="Show the conversation"
+            className="app-glass app-press pointer-events-auto absolute flex items-center gap-2 rounded-full py-1 pl-1 pr-3.5"
+            style={{ left: Math.max(12, safe.left), top: safe.top }}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
             transition={spring}
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[0.8rem] font-semibold text-white">∂</span>
-            <span className="text-[0.84rem] font-semibold text-text">Back to your question</span>
-            <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden
-              style={{ transform: `rotate(${{ up: 0, right: 90, down: 180, left: 270 }[away]}deg)` }}>
-              <path d="M12 19V5M6 11l6-6 6 6" />
-            </svg>
+            <span className="text-[0.84rem] font-semibold text-text">Show chat</span>
           </motion.button>
         )}
       </AnimatePresence>
 
-      <GraphPanel panelRef={dock} rootRef={root} graphs={graphs} wide={wide} safe={safe} reduce={reduce} onLayout={place} />
+      <GraphPanel panelRef={dock} rootRef={root} graphs={graphs} wide={wide} safe={safe} reduce={reduce} onLayout={measureSheet} />
     </div>
   );
 }
-
-type Away = "up" | "down" | "left" | "right" | null;
-
-/** Fade the thread's top edge when older bubbles scroll under it. */
-const FADE = "linear-gradient(to bottom, transparent 0, transparent 9px, #000 14px, #000 100%)";
 
 /* ───────────── Graph panel ───────────── */
 
@@ -320,9 +216,16 @@ function GraphPanel({ panelRef, rootRef, graphs, wide, safe, reduce, onLayout }:
   const count = graphs.length;
   const index = Math.min(shown, Math.max(0, count - 1));
   const graph = graphs[index];
+  const graphsNow = useRef(graphs);
+  graphsNow.current = graphs;
   useEffect(() => { if (count) { setOpen(true); setShown(count - 1); } }, [count]);
   useEffect(() => {
-    const show = () => setOpen(true);
+    const show = (e: Event) => {
+      setOpen(true);
+      const id = (e as CustomEvent<string | undefined>).detail;
+      const i = id ? graphsNow.current.findIndex((g) => g.id === id) : -1;
+      if (i >= 0) setShown(i);
+    };
     window.addEventListener("draft:show-graphs", show);
     return () => window.removeEventListener("draft:show-graphs", show);
   }, []);

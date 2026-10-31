@@ -33,12 +33,13 @@ Run `npm run dev` → http://localhost:3000/app (Chrome/Edge) → **Open a PDF**
 2. **Ask** by typing in the floating **ask pill** (bottom), tapping a pill, or the mic → a typing bubble, then in ~2–5 s the tutor answers **one white bubble per spoken sentence** (iMessage style, tail bottom-left; the student's bubbles are blue, tail bottom-right).
    - **Explain cards** are bubbles numbered ①②…; the same number is drawn on the exact term in the PDF (tinted outline + badge), snapped to the PDF's own text positions.
    - **Graphs** (Part D, Mafs: drag the point, sliders, tangent, area) open in a **separate graph panel**: a glass panel on the right on wide screens (≥ 900 px), a sheet above the ask pill on tablets/phones. A "Graph: y = a·x²" link bubble opens it.
-   - The thread ends with a "Your turn" note; circling another problem replaces the whole thread; ✕ on the thread's pill closes it. After "Solved", the next question also starts fresh (new thread, brain forgets the old circle/history/graphs). A new problem drops any answer still loading for the old one.
+   - **One conversation per document, never cleared (D38):** circling anything else (scrolled, another page) adds a "New question · …" divider and the talk carries on in the same thread, which moves beside the newest circle. Graphs and term marks stay; ids are per problem (`q2_p1`). ✕ only hides the chat ("Show chat" pill). The brain still starts each circled problem fresh (its context and working), and drops any answer still loading for the old one.
    - The graph panel never scrolls (D35): the plot shrinks so the whole card fits; short panels drop the title, legend and drag hint; several graphs show one at a time with ‹ 1 / 2 ›.
-3. **Placement:** the thread is placed in screen space beside the circle (right, left, below or above; wherever there's room, never on the circle, round the graph panel), follows the page every frame while scrolling, and scrolls itself when long. When the circle is off screen (scrolled or zoomed away) the thread hides and a "Back to your question" pill brings the circle back into view; zoomed in so far there's no room round the circle, it floats as a full card in the bottom corner.
-4. **Dragging (D34):** drag the chat by its "∂raft" pill (sticky at the top), and the graph panel by its header. Both track 1:1, rubber-band at edges and carry a flick into a spring. A moved chat keeps its offset from the circle; double-click the pill to auto-place again. The panel floats where dropped and re-docks when dropped near its edge.
+3. **Placement (D39):** one chat panel for the whole document, fixed on screen: docked on the left on wide screens (under the top bar, down to the ask pill), along the top on narrow ones (ending above the graph sheet). It never follows the canvas: the wheel/swipe over the chat scrolls the chat (it keeps the newest message in view only while you're at the bottom), anywhere else scrolls the page, and nothing is re-placed per frame, so the page scrolls smoothly.
+4. **Dragging (D34):** drag the chat by its "∂raft" pill (sticky at the top), and the graph panel by its header. Both track 1:1, rubber-band at edges and carry a flick into a spring. A moved chat stays where it was dropped; drop it near its dock or double-click the pill to dock it again. The lock on the pill pins the chat where it is (no dragging, no re-docking) until it is unlocked; remembered on the device (`draft.chatLocked`). The panel floats where dropped and re-docks when dropped near its edge.
 5. **Handwriting** is grouped into lines and read to LaTeX by `/app/read-ink` (Gemini) after a 1.2 s pause; the **Layers** button (top right) lists recognised equations; "Reading your writing…" shows as a small toast. The brain doesn't act on lines yet.
-6. Part D's standalone math studio: `npm run part-d:preview` → http://127.0.0.1:4173.
+6. **Saved documents (D40):** every document is saved (Postgres `documents` table + its file in `storage/documents/<id>/`, git-ignored). The start screen lists **Recent** documents; reopening brings back the ink, circles, tutor marks, the chat (with graphs and numbered marks) and the view. "Saved" shows beside the title. API: `/api/documents` (list, create), `/api/documents/:id` (open, save, delete), `/api/documents/:id/file`; client `src/lib/docs`; server `src/lib/server/documentStore.ts`.
+7. Part D's standalone math studio: `npm run part-d:preview` → http://127.0.0.1:4173.
 
 Checked live at 1440×900, 820×1180 and a phone-like width ([TEST_RESULTS.md](TEST_RESULTS.md), 1 Nov).
 
@@ -57,9 +58,11 @@ handwriting --1.2 s pause--> /app/read-ink ──► "line" events (+ Layers);  
 ```
 
 - **Brain** (`src/lib/agent`): one Gemini call per turn (D25), JSON schema in `schema.ts` (`kind, doubt, studentWas, stage, hintLevel, angle, misconception, done, beats[{say, visuals}], waitFor, question`). Visual types Gemini may use: highlight, mark, writeStep, **note** (explain card), plot, animate, tangent, area (`prompt.ts`). Boxes are `[ymin,xmin,ymax,xmax]` 0–1000 on the circled crop; `brain.ts` maps them to the page and adapts tangent/area/plot to Part D's format (tangent/area become full visuals replacing their plot in place; the tangent's param becomes `at`).
-- **Guards** (`src/app/api/tutor/route.ts`): max 4 beats, 1 written step, 4 notes per turn. Model chain: `gemini-3.5-flash-lite` (7 s) → `3.8-flash` → lite → `3.1-flash-lite`.
+- **Guards** (`src/app/api/tutor/route.ts`): max 4 beats, 1 written step, 4 notes per turn. Model chain: `gemini-3.5-flash-lite` (7 s) → `3.1-flash-lite` → `3.8-flash` → `3.5-flash-lite` (D26b).
 - **Student model** carried between turns: hint level, angles tried, misconceptions, checks passed/failed, graphs on screen.
-- **Math checker** (`src/lib/math`, D28/D29): numbers at seeded random points; ∫ lines compared up to a constant; equations by real roots; `dy/dx = …`; worded questions; missing `+ C`. Catches all 4 planted practice-sheet mistakes. **Not wired into the brain yet.**
+- **Math checker** (`src/lib/math`, D28/D29): numbers at seeded random points; ∫ lines compared up to a constant; equations by real roots; `dy/dx = …`; worded questions; missing `+ C`. Catches all 4 planted practice-sheet mistakes.
+- **The brain watches the working** (D37, `src/lib/agent/work.ts`): handwritten lines near the circle are checked by the engine → quiet ✓, or a red highlight + a question (never the fix); the engine-confirmed final answer = solved. Typed math answers are judged by the engine too. 8 s without writing after "write the next line" → one hint offer.
+- **Learner memory** (D36, `src/lib/server/learnerStore.ts`, local Postgres via `DATABASE_URL`): per device (id in localStorage). Every prompt gets the learner's level, topics they can do / find hard, past mistakes and recent problems; every turn and line verdict is recorded. `GET /api/learner?id=` shows it, `DELETE` forgets it. Without the database the tutor still works.
 - **Voice** is a stand-in (D27): browser `speechSynthesis` + `webkitSpeechRecognition`; the mic ignores what it hears while the tutor talks. Gradium is the target.
 - **The canvas never moves on its own** (no auto zoom/pan).
 
@@ -70,7 +73,7 @@ handwriting --1.2 s pause--> /app/read-ink ──► "line" events (+ Layers);  
 | Top bar (back, title, paper picker, fit) | top | `src/components/app/Canvas.tsx` |
 | Layers button + panel (recognised equations) | top right | `src/components/app/EquationPanel.tsx` (Part A) |
 | Status toast ("Reading your writing…", notices) | under the top bar | `src/components/app/CanvasFeedback.tsx` |
-| Message thread (bubbles, pills, typing, solved) | beside the circle | `src/components/voice/LessonCard.tsx` (content), placed by `src/components/app/TutorOverlay.tsx` |
+| Chat (bubbles, pills, typing, solved, "New question" dividers) | docked left (wide) / top (narrow), fixed | `src/components/voice/LessonCard.tsx` (content), placed by `src/components/app/TutorOverlay.tsx` |
 | Numbered term marks | on the page | `TutorOverlay.tsx` (`TermMarks`), colours `noteTone.ts` |
 | Graph panel / sheet | right, or above the ask pill | `TutorOverlay.tsx` (`GraphPanel`); graph cards `src/components/visuals/Graph.tsx` |
 | Ask pill (mic, text, send) | bottom centre, above the toolbar | `src/components/voice/AskBar.tsx` |
@@ -92,7 +95,9 @@ Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main
 
 ## Next steps (roughly in order)
 
-- [ ] **Brain uses the math engine and handwriting** (Part B): judge typed/spoken answers with `checkAnswer`; on a `line` event run `checkStep` → quiet ✓ or a gentle flag (`triggers.ts`); offer a hint after an `idle` event; `done` only when the engine agrees. This is the "agentic" core still missing.
+- [x] **Brain uses the math engine and handwriting** (D37) and **learner memory in Postgres** (D36), 1 Nov. Next: a small "What ∂raft knows about you" panel with a Forget button (the API exists: `GET/DELETE /api/learner?id=`); test ticks/flags with real handwriting on a tablet.
+- [x] **Saved documents** (D40, 1 Nov): Postgres + `storage/documents/` in the project; Recent list; ink, chat, graphs, marks and view come back on open.
+- [ ] Next for documents: rename from the top bar; a thumbnail per document; the brain doesn't get the last circle back on reopen (circle again to ask with the picture); real sign-in (then hosted: Supabase).
 - [x] `integrate/all` → `main`, pushed (1 Nov). Teammates merge `origin/main`.
 - [ ] Re-run Part A's browser checks (`/app/canvas-test`), Part D's Playwright suite, and `npm run build`.
 - [ ] Gradium voice instead of the browser voice (STT `delay_in_frames` ~12).

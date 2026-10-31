@@ -2,16 +2,25 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { deleteDoc, listDocs, type DocSummary } from "@/lib/docs";
 import { Logo } from "../landing/Logo";
-import { PlusPageIcon, UploadIcon } from "./icons";
+import { DocIcon, PlusPageIcon, TrashIcon, UploadIcon } from "./icons";
 import { PAPERS, type DocSource, type Paper } from "./types";
 
 const spring = { type: "spring" as const, bounce: 0, duration: 0.45 };
 
 const ACCEPT = ".pdf,application/pdf,image/png,image/jpeg,image/webp";
 
-export function StartScreen({ onOpen }: { onOpen: (source: DocSource) => void }) {
+export function StartScreen({ onOpen, onOpenSaved, busy, notice }: {
+  onOpen: (source: DocSource) => void;
+  /** Reopen a saved document. */
+  onOpenSaved?: (id: string) => void;
+  /** Saving or opening in progress: what to say while it happens. */
+  busy?: string | null;
+  /** A problem saving or opening, to show the student. */
+  notice?: string | null;
+}) {
   const [paper, setPaper] = useState<Paper>("grid");
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +170,7 @@ export function StartScreen({ onOpen }: { onOpen: (source: DocSource) => void })
               <p className="t-small mt-5 text-subtle">PDF, PNG or JPG · Word files: save as PDF first</p>
 
               <AnimatePresence>
-                {error && (
+                {(error ?? notice) && (
                   <motion.p
                     role="alert"
                     className="mt-4 rounded-xl bg-[#fdecec] px-3.5 py-2.5 text-[0.88rem] leading-[1.45] text-[#b42318]"
@@ -170,16 +179,112 @@ export function StartScreen({ onOpen }: { onOpen: (source: DocSource) => void })
                     exit={{ opacity: 0 }}
                     transition={spring}
                   >
-                    {error}
+                    {error ?? notice}
                   </motion.p>
                 )}
               </AnimatePresence>
             </div>
           </motion.section>
         </div>
+
+        {onOpenSaved && <Recent onOpen={onOpenSaved} />}
       </main>
+
+      <AnimatePresence>
+        {busy && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            role="status"
+          >
+            <div className="surface flex items-center gap-3 rounded-2xl px-6 py-4">
+              <span className="h-5 w-5 animate-spin rounded-full border-[2.5px] border-ink/20 border-t-ink" />
+              <span className="text-[0.95rem] font-medium text-text">{busy}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
+}
+
+/** The student's saved documents, most recently opened first: tap to carry on where they left off. */
+function Recent({ onOpen }: { onOpen: (id: string) => void }) {
+  const [docs, setDocs] = useState<DocSummary[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void listDocs().then((d) => { if (live) setDocs(d); });
+    return () => { live = false; };
+  }, []);
+  if (!docs?.length) return null;
+
+  const remove = async (doc: DocSummary) => {
+    if (!window.confirm(`Delete "${doc.title}"? Its writing and conversation will be gone too.`)) return;
+    if (await deleteDoc(doc.id)) setDocs((d) => d?.filter((x) => x.id !== doc.id) ?? null);
+  };
+
+  return (
+    <motion.section
+      className="mt-12"
+      aria-labelledby="recent-heading"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: 0.15 }}
+    >
+      <h2 id="recent-heading" className="t-h3">Recent</h2>
+      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <AnimatePresence initial={false}>
+          {docs.map((doc) => (
+            <motion.li
+              key={doc.id}
+              layout
+              className="surface group relative overflow-hidden rounded-[18px]"
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={spring}
+            >
+              <button
+                type="button"
+                onClick={() => onOpen(doc.id)}
+                className="pressable flex w-full items-center gap-3.5 p-4 pr-12 text-left"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink-wash text-ink">
+                  {doc.kind === "blank" ? <PlusPageIcon className="h-5 w-5" /> : <DocIcon className="h-5 w-5" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[0.98rem] font-semibold text-text">{doc.title}</span>
+                  <span className="t-small mt-0.5 block truncate text-subtle">
+                    {doc.kind === "pdf" ? "PDF" : doc.kind === "image" ? "Image" : "Notebook"}
+                    {doc.pages && doc.kind === "pdf" ? ` · ${doc.pages} page${doc.pages === 1 ? "" : "s"}` : ""}
+                    {" · "}{ago(doc.updatedAt)}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void remove(doc)}
+                aria-label={`Delete ${doc.title}`}
+                className="app-press absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-subtle opacity-70 transition-opacity hover:bg-black/5 hover:text-[#b42318] hover:opacity-100 focus-visible:opacity-100"
+              >
+                <TrashIcon className="h-[18px] w-[18px]" />
+              </button>
+            </motion.li>
+          ))}
+        </AnimatePresence>
+      </ul>
+    </motion.section>
+  );
+}
+
+/** "Edited just now", "Edited 5 min ago", "Edited 3 Nov". */
+function ago(iso: string): string {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "Edited just now";
+  if (s < 3600) return `Edited ${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `Edited ${Math.floor(s / 3600)} h ago`;
+  return `Edited ${new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
 }
 
 /** A small live sample of the chosen paper, with a line of handwriting on it. */

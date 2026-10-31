@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AssetRecordType,
   Box,
@@ -10,6 +10,7 @@ import {
   useEditor,
   type Editor,
   type TLComponents,
+  type TLShape,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import { TutorSession } from "@/components/session/TutorSession";
@@ -19,6 +20,7 @@ import { PaperBackground } from "./PaperBackground";
 import { Toolbar } from "./Toolbar";
 import { PAPERS, type DocSource, type Paper } from "./types";
 import { createCanvasApi, type CanvasHandle, type InkRecognizer } from "@/lib/canvas";
+import { autosaver, saveDoc, type Autosaver } from "@/lib/docs";
 import { TutorInkShapeUtil } from "./TutorInkShape";
 import { CanvasFeedback } from "./CanvasFeedback";
 import { EquationPanel } from "./EquationPanel";
@@ -29,6 +31,8 @@ const spring = { type: "spring" as const, bounce: 0, duration: 0.35 };
 const shapeUtils = [TutorInkShapeUtil];
 
 type Status = { state: "ready" } | { state: "loading"; label: string } | { state: "error"; message: string };
+/** Where saving stands, shown beside the title. "off": not a saved document (no database). */
+type SaveState = "off" | "saved" | "saving" | "error";
 
 export type CanvasProps = {
   source: DocSource;
@@ -47,9 +51,24 @@ export function Canvas({ source, onExit, onReady, recogniseInk, tutor = true }: 
   const [api, setApi] = useState<CanvasHandle | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
+  const [saver, setSaver] = useState<Autosaver | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>(source.doc ? "saved" : "off");
 
   const isFile = source.kind === "file";
-  const title = isFile ? source.file.name.replace(/\.[^.]+$/, "") : "Untitled";
+  const title = source.doc?.title ?? (isFile ? source.file.name.replace(/\.[^.]+$/, "") : "Untitled");
+
+  // The paper choice is saved with the document.
+  const firstPaper = useRef(true);
+  useEffect(() => {
+    if (firstPaper.current) { firstPaper.current = false; return; }
+    if (source.doc) void saveDoc(source.doc.id, { paper });
+  }, [paper, source.doc]);
+
+  /** Leaving: save what's pending first, so nothing is lost. */
+  const exit = useCallback(async () => {
+    await saver?.flush();
+    onExit();
+  }, [saver, onExit]);
   const tint = isFile ? "#f3f3f6" : "#ffffff";
 
   const components = useMemo<TLComponents>(
@@ -65,14 +84,45 @@ export function Canvas({ source, onExit, onReady, recogniseInk, tutor = true }: 
       const canvasApi = createCanvasApi(editor, { recogniseInk, onError: setNotice, onReading: setReading });
       setApi(canvasApi);
       const disconnect = onReady?.(canvasApi, editor);
+      const stops: (() => void)[] = [];
       const cleanup = () => {
         cancelled = true;
+        stops.forEach((stop) => stop());
         disconnect?.();
         canvasApi.dispose();
       };
 
+      /** The document is on the canvas: bring back what was saved, then save every change from here on. */
+      const ready = (fit: () => void) => {
+        const doc = source.doc;
+        const saved = doc?.saved?.canvas;
+        if (saved) canvasApi.restore({ shapes: saved.shapes as TLShape[], recognised: saved.recognised });
+        if (saved?.camera && [saved.camera.x, saved.camera.y, saved.camera.z].every(Number.isFinite)) editor.setCamera(saved.camera);
+        else fit();
+        if (!doc) return;
+        const save = autosaver(doc.id, () => {
+          const { x, y, z } = editor.getCamera();
+          return { canvas: { ...canvasApi.exportState(), camera: { x, y, z } } };
+        });
+        stops.push(save.onState(setSaveState));
+        // Any change to the page (ink, circles, tutor marks), the view, or handwriting just read.
+        stops.push(editor.store.listen(() => save.schedule(), { scope: "document", source: "user" }));
+        stops.push(editor.store.listen(() => save.schedule(), { scope: "session", source: "user" }));
+        stops.push(canvasApi.onEvent((e) => { if (e.type === "line") save.schedule(); }));
+        const hidden = () => { if (document.visibilityState === "hidden") void save.flush(); };
+        const closing = () => save.beacon();
+        document.addEventListener("visibilitychange", hidden);
+        window.addEventListener("pagehide", closing);
+        stops.push(() => {
+          document.removeEventListener("visibilitychange", hidden);
+          window.removeEventListener("pagehide", closing);
+          void save.flush();
+        });
+        setSaver(save);
+      };
+
       if (source.kind === "blank") {
-        editor.setCamera({ x: 0, y: 0, z: 1 });
+        ready(() => editor.setCamera({ x: 0, y: 0, z: 1 }));
         return cleanup;
       }
 
@@ -115,7 +165,8 @@ export function Canvas({ source, onExit, onReady, recogniseInk, tutor = true }: 
             // Pages are the document itself: never part of undo/redo.
             { history: "ignore" },
           );
-          fitWidth(editor, pages[0]?.h ?? 1000);
+          ready(() => fitWidth(editor, pages[0]?.h ?? 1000));
+          if (source.doc) void saveDoc(source.doc.id, { pages: pages.length });
           setStatus({ state: "ready" });
         })
         .catch((err: unknown) => {
@@ -137,9 +188,9 @@ export function Canvas({ source, onExit, onReady, recogniseInk, tutor = true }: 
   return (
     <div className="draft-canvas fixed inset-0">
       <Tldraw hideUi components={components} shapeUtils={shapeUtils} onMount={onMount}>
-        <TopBar title={title} paper={paper} onPaper={setPaper} onExit={onExit} />
+        <TopBar title={title} paper={paper} onPaper={setPaper} onExit={exit} saveState={saveState} />
         <Toolbar />
-        {api && tutor && <TutorSession canvas={api} />}
+        {api && tutor && <TutorSession canvas={api} doc={source.doc} />}
         {api && <CanvasFeedback api={api} reading={reading} notice={notice} onNotice={setNotice} />}
         {api && <EquationPanel api={api} reading={reading} onNotice={setNotice} />}
       </Tldraw>
@@ -165,7 +216,7 @@ export function Canvas({ source, onExit, onReady, recogniseInk, tutor = true }: 
                   <p className="text-[0.9rem] leading-[1.5] text-muted">{status.message}</p>
                   <button
                     type="button"
-                    onClick={onExit}
+                    onClick={() => void exit()}
                     className="pressable btn-primary rounded-full px-5 py-2.5 text-[0.9rem] font-semibold"
                   >
                     Choose another
@@ -197,17 +248,20 @@ function TopBar({
   paper,
   onPaper,
   onExit,
+  saveState,
 }: {
   title: string;
   paper: Paper;
   onPaper: (p: Paper) => void;
-  onExit: () => void;
+  onExit: () => void | Promise<void>;
+  saveState: SaveState;
 }) {
   const editor = useEditor();
 
+  // A saved document keeps everything; only an unsaved one (no database) can lose writing on the way out.
   const leave = () => {
     const hasInk = editor.getCurrentPageShapes().some((s) => s.meta?.kind !== "page");
-    if (!hasInk || window.confirm("Leave this document? Your writing isn't saved yet.")) onExit();
+    if (saveState !== "off" || !hasInk || window.confirm("Leave this document? Your writing isn't saved.")) void onExit();
   };
 
   return (
@@ -225,6 +279,15 @@ function TopBar({
           <ChevronLeftIcon className="h-5 w-5" />
         </button>
         <span className="truncate text-[0.95rem] font-semibold tracking-[-0.01em] text-text">{title}</span>
+        {saveState !== "off" && (
+          <span
+            className={`ml-2 shrink-0 text-[0.75rem] font-medium ${saveState === "error" ? "text-[#b42318]" : "text-subtle"}`}
+            role="status"
+            aria-live="polite"
+          >
+            {saveState === "saving" ? "Saving…" : saveState === "error" ? "Not saved, retrying" : "Saved"}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

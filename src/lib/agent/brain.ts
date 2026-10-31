@@ -3,20 +3,27 @@ import type {
   BrainApi,
   BrainStatus,
   CanvasApi,
+  CanvasEvent,
   CircleContext,
   MathApi,
   Target,
   TutorTurn,
   VisualAction,
 } from "@/lib/contracts";
+import { learnerId, reportLine } from "./learner";
 import type { RawTurn, RawVisual, TutorRequest, TutorResponse } from "./schema";
 import { newStudentModel, type StudentModel } from "./studentModel";
+import { decideTrigger } from "./triggers";
+import { createWork } from "./work";
 
 type Deps = { canvas: CanvasApi; math: MathApi };
 
 /**
  * The teaching loop (docs/AGENT_BRAIN.md §3). Each question or answer from the student becomes one
  * Gemini turn; the student model carries hint level, angles tried and mistakes between turns.
+ * The math engine (work.ts) watches the student's handwritten lines: a quiet ✓ for a right step, a gentle
+ * flag for a wrong one, and "solved" only when it confirms the final answer. The server adds what it
+ * remembers about this learner (learnerStore.ts) to every turn.
  */
 export function createBrain({ canvas, math }: Deps): BrainApi {
   const turnListeners = new Set<(turn: TutorTurn) => void>();
@@ -27,75 +34,188 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
   let request = 0;
   /** Graphs on screen for the current circle (plotId → what's drawn), so Gemini reuses them. */
   let graphs = new Map<string, Graph>();
+  /** The student's written lines for this problem, checked by the math engine. */
+  const work = createWork(math);
+  /** The problem is finished (the engine confirmed the answer, or the student explained it back). */
+  let solved = false;
+  let lastTurn: TutorTurn | null = null;
+  /** A hint was already offered since the student last wrote or spoke. */
+  let nudged = false;
+  /** A Gemini turn is on its way. */
+  let busy = false;
+  /** Counts problems in this document: graph and card ids are tagged with it, so they never replace an earlier one's. */
+  let problemNo = 0;
 
   const setStatus = (s: BrainStatus) => statusListeners.forEach((fn) => fn(s));
   /** A new problem starts with a clean slate; an answer still on its way for the old one is dropped. */
-  const startProblem = () => {
+  const startProblem = (context: CircleContext | null) => {
     request++;
+    busy = false;
     setStatus({ state: "idle" });
     history = [];
     graphs = new Map();
     model = newStudentModel(`circle-${Date.now()}`);
+    problemNo++;
+    // The problem is the printed text circled, or the first line of the student's own writing they circled.
+    work.setProblem(context ? context.pdfText?.trim() || context.recentLines[0] || "" : "");
+    solved = false;
+    lastTurn = null;
+    nudged = false;
+  };
+
+  const emit = (turn: TutorTurn) => {
+    lastTurn = turn;
+    if (turn.insight?.done) {
+      solved = true;
+      model = { ...model, stage: "done" };
+    }
+    turnListeners.forEach((fn) => fn(turn));
+  };
+
+  /** A short turn the brain says by itself, without asking Gemini (fast, no quota). */
+  const sayLocal = (say: string, waitFor: TutorTurn["waitFor"], studentWas: "correct" | "asking", done = false, visuals: VisualAction[] = []) => {
+    history = [...history, { role: "tutor" as const, text: say }].slice(-16);
+    emit({
+      beats: [{ say, visuals }],
+      waitFor,
+      question: waitFor === "answer" ? say : undefined,
+      insight: { kind: done ? "check" : "next-step", doubt: "", studentWas, done },
+    });
+  };
+
+  /**
+   * One Gemini turn. transcript = what the student said; event = something they did that the brain reacts to
+   * by itself (then `wrote` is what goes in the history); lead = visuals that open the first beat.
+   */
+  const ask = async (input: { transcript: string; event?: string; wrote?: string; answer?: TutorRequest["answer"]; lead?: VisualAction[] }) => {
+    const id = ++request;
+    busy = true;
+    setStatus({ state: "thinking" });
+
+    const body: TutorRequest = {
+      image: circle?.cropImage || undefined,
+      pdfText: circle?.pdfText || undefined,
+      transcript: input.transcript,
+      event: input.event,
+      answer: input.answer,
+      learnerId: learnerId(),
+      problemId: model.problemId,
+      problem: work.problem || undefined,
+      work: work.describe(),
+      graphs: [...graphs].map(([id, g]) =>
+        `${id}: y = ${g.fn} (${Object.entries(g.params).map(([k, v]) => `${k} = ${v}`).join(", ")})` +
+        (g.tangentParam ? `, tangent at x = ${g.tangentParam}` : "")),
+      history,
+      student: {
+        hintLevel: model.hintLevel,
+        anglesTried: model.triedAngles,
+        misconceptions: model.misconceptions,
+        checksPassed: model.checksPassed,
+        checksFailed: model.checksFailed,
+      },
+    };
+
+    try {
+      const res = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as TutorResponse;
+      if (id !== request) return; // the student asked something newer
+      if ("error" in data) throw new Error(data.error);
+
+      model = updateModel(model, data.turn);
+      const turn = toTutorTurn(data.turn, circle, data.model, data.ms, graphs);
+      // The server always sends at least one beat; the lead visuals appear as it starts.
+      if (input.lead?.length && turn.beats[0]) turn.beats[0].visuals.unshift(...input.lead);
+      rememberGraphs(graphs, turn);
+      history = [
+        ...history,
+        { role: "student" as const, text: input.transcript || input.wrote || "(silent)" },
+        { role: "tutor" as const, text: turn.beats.map((b) => b.say).join(" ") },
+      ].slice(-16);
+
+      busy = false;
+      setStatus({ state: "idle" });
+      emit(scoped(turn, `q${problemNo}_`));
+    } catch (err) {
+      if (id !== request) return;
+      busy = false;
+      setStatus({ state: "error", message: err instanceof Error ? err.message : "Something went wrong." });
+    }
+  };
+
+  /** A handwritten line near the circled problem: the engine checks it, and the brain reacts only if it must. */
+  const onLine = async (event: Extract<CanvasEvent, { type: "line" }>) => {
+    if (!circle || solved) return;
+    const box = "bbox" in event.target ? event.target.bbox : null;
+    if (box && !nearProblem(box, circle.bbox)) return;
+    nudged = false;
+    const problemId = model.problemId;
+    const result = await work.addLine(event.latex, box);
+    if (!result || problemId !== model.problemId) return; // already checked, or a new problem started meanwhile
+    const { line, verdict } = result;
+    if (verdict !== "unclear") reportLine(problemId, work.problem, verdict);
+
+    if (verdict === "solved") {
+      // The engine confirmed the final answer: that's done (D20), whatever the tutor was about to say.
+      request++;
+      busy = false;
+      setStatus({ state: "idle" });
+      canvas.draw({ type: "mark", target: event.target, kind: "tick" });
+      sayLocal("Yes! That's the right answer, and you got there yourself.", "none", "correct", true);
+      return;
+    }
+    const trigger = decideTrigger(event, line.check);
+    if (trigger === "quiet-tick") canvas.draw({ type: "mark", target: event.target, kind: "tick" });
+    // A wrong line: point at it and ask, never give the fix. Skipped while a turn is on its way (it'll see the line).
+    if (trigger === "flag-wrong-line" && !busy) {
+      const before = work.lines.length > 1 ? work.lines[work.lines.length - 2].latex : work.problem;
+      await ask({
+        transcript: "",
+        wrote: `(wrote) ${line.latex}`,
+        event: `The student wrote the line "${line.latex}" after "${before}". The math engine says it does not follow` +
+          `${!line.check.ok && line.check.detail ? `: ${line.check.detail}` : "."} It is highlighted in red for them.`,
+        lead: [{ type: "highlight", target: event.target, colour: "red" }],
+      });
+    }
+  };
+
+  /** The pen has been still for a while after the tutor asked for a line: offer a hint, once. */
+  const onIdle = (event: Extract<CanvasEvent, { type: "idle" }>) => {
+    if (!circle || solved || busy || nudged || lastTurn?.waitFor !== "line") return;
+    if (decideTrigger(event) !== "offer-nudge") return;
+    nudged = true;
+    sayLocal("Stuck on the next line? Ask me for a hint whenever you like.", "answer", "asking");
   };
 
   return {
     handleCanvas(event) {
       if (event.type === "circle") {
         circle = event.context;
-        startProblem();
+        startProblem(event.context);
+      } else if (event.type === "line") {
+        void onLine(event);
+      } else if (event.type === "idle") {
+        onIdle(event);
       }
-      // TODO(B): "line" → math.checkStep → triggers.ts (flag wrong lines, quiet ✓); "idle" → offer a nudge.
-      void math;
     },
 
     async handleSpeech(said) {
       const transcript = said.transcript.trim();
       if (!transcript) return;
-      const id = ++request;
-      setStatus({ state: "thinking" });
-
-      const body: TutorRequest = {
-        image: circle?.cropImage || undefined,
-        pdfText: circle?.pdfText || undefined,
-        transcript,
-        graphs: [...graphs].map(([id, g]) =>
-          `${id}: y = ${g.fn} (${Object.entries(g.params).map(([k, v]) => `${k} = ${v}`).join(", ")})` +
-          (g.tangentParam ? `, tangent at x = ${g.tangentParam}` : "")),
-        history,
-        student: {
-          hintLevel: model.hintLevel,
-          anglesTried: model.triedAngles,
-          misconceptions: model.misconceptions,
-          checksPassed: model.checksPassed,
-          checksFailed: model.checksFailed,
-        },
-      };
-
-      try {
-        const res = await fetch("/api/tutor", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = (await res.json()) as TutorResponse;
-        if (id !== request) return; // the student asked something newer
-        if ("error" in data) throw new Error(data.error);
-
-        model = updateModel(model, data.turn);
-        const turn = toTutorTurn(data.turn, circle, data.model, data.ms, graphs);
-        rememberGraphs(graphs, turn);
-        history = [
-          ...history,
-          { role: "student" as const, text: transcript },
-          { role: "tutor" as const, text: turn.beats.map((b) => b.say).join(" ") },
-        ].slice(-16);
-
-        setStatus({ state: "idle" });
-        turnListeners.forEach((fn) => fn(turn));
-      } catch (err) {
-        if (id !== request) return;
-        setStatus({ state: "error", message: err instanceof Error ? err.message : "Something went wrong." });
-      }
+      nudged = false;
+      // A typed or spoken answer that is math ("x e^x - e^x + C") is judged by the engine, not only by Gemini.
+      const judged = circle && !solved ? await work.judgeAnswer(transcript) : null;
+      const answer: TutorRequest["answer"] = judged
+        ? {
+            verdict: judged.check.ok ? "correct" : "wrong",
+            final: judged.final,
+            detail: judged.check.ok ? undefined : judged.check.detail,
+          }
+        : undefined;
+      await ask({ transcript, answer });
     },
 
     onTurn(listener) {
@@ -108,10 +228,34 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
     },
     reset() {
       circle = null;
-      startProblem();
-      canvas.clearTutorInk();
+      // Forget the problem, not the page: the conversation, graphs and marks stay with the document.
+      startProblem(null);
     },
   };
+}
+
+/**
+ * Gemini reuses short ids ("p1", "a") on every problem. Everything stays on screen for the whole document, so
+ * tag graph and card ids with the problem ("q2_p1") before they're shown; otherwise a new problem's graph would
+ * replace an earlier one's. The brain's own memory of graphs keeps Gemini's ids, which is what Gemini sees.
+ */
+function scoped(turn: TutorTurn, prefix: string): TutorTurn {
+  const id = (s: string) => (s.startsWith(prefix) ? s : `${prefix}${s}`).slice(0, 80);
+  const scope = (v: VisualAction): VisualAction => {
+    switch (v.type) {
+      case "plot": return { ...v, id: id(v.id) };
+      case "animateParam": return { ...v, plotId: id(v.plotId) };
+      case "note": return { ...v, id: id(v.id) };
+      case "showVisual": return v.args.id === undefined ? v : { ...v, args: { ...v.args, id: id(String(v.args.id)) } };
+      default: return v;
+    }
+  };
+  return { ...turn, beats: turn.beats.map((b) => ({ ...b, visuals: b.visuals.map(scope) })) };
+}
+
+/** Lines written below or beside the circled problem belong to it; writing elsewhere on the page doesn't. */
+function nearProblem(line: BBox, c: BBox): boolean {
+  return line.x + line.w > c.x - 300 && line.x < c.x + c.w + 600 && line.y + line.h > c.y - 100 && line.y < c.y + c.h + 1200;
 }
 
 /** Adapt between turns (docs/AGENT_BRAIN.md §4). */

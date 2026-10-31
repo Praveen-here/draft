@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { BrainApi, BrainStatus, NoteKind, PlayerApi, TutorTurn, VisualAction } from "@/lib/contracts";
+import type { BrainApi, BrainStatus, CanvasApi, CircleContext, NoteKind, PlayerApi, TutorTurn, VisualAction } from "@/lib/contracts";
 
 /** iMessage-style colours: the tutor's bubbles are white (incoming), the student's blue (outgoing). */
 const BLUE = "#0a7cff";
@@ -13,29 +13,76 @@ const TONE: Record<NoteKind, { colour: string; wash: string; label: string }> = 
   rule: { colour: "#6e4bd8", wash: "#f1edfd", label: "Rule" },
   mistake: { colour: "#d4452f", wash: "#fdeeeb", label: "Check this" },
 };
+const LOCK_KEY = "draft.chatLocked";
+/** The message list's edges: bubbles fade out as they scroll past the top or bottom, with no hard cut. */
+const EDGE_FADE = "linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)";
 const STARTERS = ["How do I start?", "Why this step?", "What do these mean?", "Is this right?"];
 
 type Msg =
   | { id: number; from: "student"; text: string }
-  | { id: number; from: "tutor"; turn: TutorTurn; spoken: number; finished: boolean };
+  | { id: number; from: "tutor"; turn: TutorTurn; spoken: number; finished: boolean }
+  /** A new circle: the conversation carries on, about a new question. */
+  | { id: number; from: "divider"; text: string };
+
+/** One message of the conversation, as it is saved with the document. */
+export type ChatMessage = Msg;
+
+/** A saved conversation, checked: anything malformed is dropped; the tutor's turns show as fully said. */
+function restoreChat(saved: unknown[] | undefined): Msg[] {
+  if (!Array.isArray(saved)) return [];
+  return saved.flatMap((raw): Msg[] => {
+    const m = raw as Partial<Msg> & { turn?: TutorTurn };
+    if (typeof m?.id !== "number") return [];
+    if ((m.from === "student" || m.from === "divider") && typeof m.text === "string") return [{ id: m.id, from: m.from, text: m.text }];
+    if (m.from === "tutor" && Array.isArray(m.turn?.beats)) {
+      return [{ id: m.id, from: "tutor", turn: m.turn, spoken: m.turn.beats.length - 1, finished: true }];
+    }
+    return [];
+  });
+}
+
+/** What a circle is about, in a few words, for the divider: its printed text, else the student's own line. */
+export function problemLabel(context: CircleContext): string {
+  const text = (context.pdfText || context.recentLines[0] || "").replace(/\s+/g, " ").trim();
+  return text.length > 64 ? `${text.slice(0, 62)}…` : text || "The part you circled";
+}
 
 /**
- * The conversation about one circled problem, as message bubbles that float beside the circle.
+ * The conversation for the whole document, as message bubbles that float beside the newest circle.
  * The tutor's sentences arrive as white bubbles while it speaks them, with explain cards, written steps and
- * "view graph" links as their own bubbles; the student's questions and answers are blue. A new circle
- * replaces the thread. Part C (voice and conversation).
+ * "view graph" links as their own bubbles; the student's questions and answers are blue. It is never cleared:
+ * each new circle adds a "new question" divider and the talk carries on below it. Part C (voice and conversation).
  *
- * @param asked the question that opened this thread, when it was opened by asking (not by circling).
+ * @param asked the question that opened the conversation, when it was opened by asking (not by circling).
+ * @param problem what the first circle was about, when it was opened by circling.
  */
-export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: PlayerApi; asked?: string }) {
+export function LessonCard({ brain, player, canvas, asked, problem, saved, onChange }: {
+  brain: BrainApi; player: PlayerApi; canvas?: CanvasApi; asked?: string; problem?: string;
+  /** A saved conversation to carry on (reopened document). */
+  saved?: unknown[];
+  /** Every change to the conversation, for saving it with the document. */
+  onChange?: (msgs: ChatMessage[]) => void;
+}) {
   const nextId = useRef(1);
-  const [msgs, setMsgs] = useState<Msg[]>(() => (asked ? [{ id: nextId.current++, from: "student", text: asked }] : []));
+  const [msgs, setMsgs] = useState<Msg[]>(() => {
+    const restored = restoreChat(saved);
+    nextId.current = restored.reduce((max, m) => Math.max(max, m.id), 0) + 1;
+    return [
+      ...restored,
+      ...(problem ? [{ id: nextId.current++, from: "divider" as const, text: problem }] : []),
+      ...(asked ? [{ id: nextId.current++, from: "student" as const, text: asked }] : []),
+    ];
+  });
+  useEffect(() => { onChange?.(msgs); }, [msgs, onChange]);
   const [status, setStatus] = useState<BrainStatus>(asked ? { state: "thinking" } : { state: "idle" });
   const lastSaid = useRef(asked ?? "");
   const reduce = !!useReducedMotion();
 
   useEffect(() => {
     const offs = [
+      canvas?.onEvent((e) => {
+        if (e.type === "circle") setMsgs((m) => [...m, { id: nextId.current++, from: "divider", text: problemLabel(e.context) }]);
+      }) ?? (() => {}),
       brain.onStatus(setStatus),
       brain.onTurn((turn) => setMsgs((m) => [...m, { id: nextId.current++, from: "tutor", turn, spoken: -1, finished: false }])),
       player.onBeat((turn, index) =>
@@ -49,10 +96,11 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
       }),
     ];
     return () => offs.forEach((off) => off());
-  }, [brain, player]);
+  }, [brain, player, canvas]);
 
   const last = msgs[msgs.length - 1];
-  const asking = !msgs.some((m) => m.from === "student");
+  // Nothing said yet about the newest circle: greet it, with a few ways to ask.
+  const asking = !msgs.length || last.from === "divider";
   const thinking = status.state === "thinking";
   const speaking = last?.from === "tutor" && !last.finished;
   const done = last?.from === "tutor" && last.finished && !!last.turn.insight?.done;
@@ -61,41 +109,57 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
   // Explain cards are numbered in the order they appear, like the marks on the page.
   const numbers = new Map<string, number>();
 
+  // The lock keeps the chat where it is on screen (no dragging). Remembered on this device.
+  const [locked, setLocked] = useState(() => {
+    try { return localStorage.getItem(LOCK_KEY) === "1"; } catch { return false; }
+  });
+  const toggleLock = () => setLocked((l) => {
+    try { localStorage.setItem(LOCK_KEY, l ? "0" : "1"); } catch { /* storage blocked: lock for this visit only */ }
+    return !l;
+  });
+
+  // ✕ only hides the conversation: it's kept for the document and comes back with the next circle or answer.
   const close = () => {
     player.stop();
-    brain.reset();
+    window.dispatchEvent(new Event("draft:hide-chat"));
   };
 
   return (
-    <section aria-label="Conversation with ∂raft" className="flex flex-col gap-1.5">
-      {/* Who's talking, and a way out */}
-      {/* Also the handle: drag it to move the conversation, double-click to let it place itself again.
-          It stays at the top while older bubbles scroll under it, so it can always be grabbed. */}
+    <section aria-label="Conversation with ∂raft" className="flex min-h-0 flex-1 flex-col">
+      {/* Who's talking, and a way out. Also the handle: drag it to move the conversation, double-click to let it
+          place itself again. It stays put above the messages (only they scroll), so nothing passes under it. */}
+      <div className="shrink-0 pb-1">
       <div
-        className="sticky top-3 z-10 -mx-3 -mt-1 px-3 pb-2.5 pt-1"
-        // Scroll edge effect: bubbles passing under the handle blur and fade, instead of meeting a hard edge.
-        style={{
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          maskImage: "linear-gradient(to bottom, #000 calc(100% - 12px), transparent)",
-          WebkitMaskImage: "linear-gradient(to bottom, #000 calc(100% - 12px), transparent)",
-        }}
-      >
-      <div
-        data-drag-handle=""
-        title="Drag to move · double-click to put it back"
-        className="app-glass flex w-fit cursor-grab touch-none select-none items-center gap-2 rounded-full py-1 pl-1 pr-1.5 active:cursor-grabbing"
+        // Locked: no drag handle at all, so the chat can't be dragged or re-docked until it's unlocked.
+        data-drag-handle={locked ? undefined : ""}
+        title={locked ? "Locked in place · tap the lock to move it again" : "Drag to move · double-click to put it back"}
+        className={`app-glass flex w-fit touch-none select-none items-center gap-2 rounded-full py-1 pl-1 pr-1.5 ${locked ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[0.8rem] font-semibold text-white">∂</span>
         <span className="text-[0.8rem] font-semibold text-text">∂raft</span>
         <span className="text-[0.76rem] font-medium text-muted">· {label}</span>
-        <svg aria-hidden viewBox="0 0 10 16" className="ml-0.5 h-3.5 w-2.5 text-[#b4b8c2]" fill="currentColor">
-          {[3, 8, 13].map((y) => <g key={y}><circle cx="2.5" cy={y} r="1.3" /><circle cx="7.5" cy={y} r="1.3" /></g>)}
-        </svg>
+        {!locked && (
+          <svg aria-hidden viewBox="0 0 10 16" className="ml-0.5 h-3.5 w-2.5 text-[#b4b8c2]" fill="currentColor">
+            {[3, 8, 13].map((y) => <g key={y}><circle cx="2.5" cy={y} r="1.3" /><circle cx="7.5" cy={y} r="1.3" /></g>)}
+          </svg>
+        )}
+        <button
+          type="button"
+          onClick={toggleLock}
+          aria-pressed={locked}
+          aria-label={locked ? "Unlock the chat so it can be moved" : "Lock the chat in place"}
+          className={`app-press ml-0.5 flex h-6 w-6 items-center justify-center rounded-full hover:bg-[rgba(15,23,42,0.06)] ${locked ? "text-ink" : "text-subtle hover:text-text"}`}
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="5" y="11" width="14" height="10" rx="2.5" fill={locked ? "currentColor" : "none"} />
+            {/* The shackle closes when locked, and swings open when not. */}
+            <path d={locked ? "M8 11V8a4 4 0 0 1 8 0v3" : "M8 11V8a4 4 0 0 1 7.6-1.7"} />
+          </svg>
+        </button>
         <button
           type="button"
           onClick={close}
-          aria-label="Close this conversation"
+          aria-label="Hide the conversation (it is kept)"
           className="app-press ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-subtle hover:bg-[rgba(15,23,42,0.06)] hover:text-text"
         >
           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden>
@@ -105,15 +169,53 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
       </div>
       </div>
 
+      {/* The messages scroll on their own; their top and bottom edges fade instead of cutting off. */}
+      <div
+        data-chat-scroll=""
+        className="-mx-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:none]"
+        style={{ maskImage: EDGE_FADE, WebkitMaskImage: EDGE_FADE }}
+      >
       <AnimatePresence initial={true}>
+        {msgs.map((m, i) => {
+          const nextFrom = msgs[i + 1]?.from ?? (thinking ? "tutor" : undefined);
+          if (m.from === "divider") {
+            return (
+              // Like a timestamp in Messages: a quiet centred line where the talk moves to a new question.
+              <motion.div
+                key={m.id}
+                role="separator"
+                aria-label={`New question: ${m.text}`}
+                className="my-2 flex items-center gap-2 self-stretch text-[0.72rem] font-medium text-muted"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
+              >
+                <span className="h-px flex-1 bg-[rgba(15,23,42,0.12)]" />
+                <span className="app-glass max-w-[80%] truncate rounded-full px-2.5 py-0.5">
+                  <span className="font-semibold text-text">New question</span> · {m.text}
+                </span>
+                <span className="h-px flex-1 bg-[rgba(15,23,42,0.12)]" />
+              </motion.div>
+            );
+          }
+          if (m.from === "student") {
+            return (
+              <Bubble key={m.id} from="student" tail={nextFrom !== "student"} reduce={reduce}>
+                {m.text}
+              </Bubble>
+            );
+          }
+          return <TutorTurnBubbles key={m.id} msg={m} numbers={numbers} lastInGroup={nextFrom !== "tutor"} reduce={reduce} />;
+        })}
+
         {asking && !thinking && (
-          <Bubble key="hello" from="tutor" tail reduce={reduce}>
+          <Bubble key={`hello-${last?.id ?? 0}`} from="tutor" tail reduce={reduce}>
             What would you like to know about this?
           </Bubble>
         )}
         {asking && !thinking && (
           <motion.div
-            key="starters"
+            key={`starters-${last?.id ?? 0}`}
             className="flex flex-wrap justify-end gap-1.5 pt-1"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -133,18 +235,6 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
             ))}
           </motion.div>
         )}
-
-        {msgs.map((m, i) => {
-          const nextFrom = msgs[i + 1]?.from ?? (thinking ? "tutor" : undefined);
-          if (m.from === "student") {
-            return (
-              <Bubble key={m.id} from="student" tail={nextFrom !== "student"} reduce={reduce}>
-                {m.text}
-              </Bubble>
-            );
-          }
-          return <TutorTurnBubbles key={m.id} msg={m} numbers={numbers} lastInGroup={nextFrom !== "tutor"} reduce={reduce} />;
-        })}
 
         {thinking && <Typing key="typing" reduce={reduce} />}
 
@@ -180,6 +270,7 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
           </motion.p>
         )}
       </AnimatePresence>
+      </div>
     </section>
   );
 }
@@ -263,7 +354,7 @@ function attachment(v: VisualAction, key: string, numbers: Map<string, number>, 
       <motion.button
         key={key}
         type="button"
-        onClick={() => window.dispatchEvent(new Event("draft:show-graphs"))}
+        onClick={() => window.dispatchEvent(new CustomEvent("draft:show-graphs", { detail: v.type === "plot" ? v.id : String(v.args.id ?? "") }))}
         className="app-press flex w-fit items-center gap-2 self-start rounded-full border border-[rgba(37,71,208,0.18)] bg-white px-3 py-1.5 text-[0.82rem] font-semibold text-ink shadow-[0_2px_8px_-4px_rgba(16,24,40,0.25)]"
         initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}

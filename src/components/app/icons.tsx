@@ -107,3 +107,16 @@ export function UploadIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function DocIcon({ className }: IconProps) {
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden {...base}>
+    <path d="M7 3h7l5 5v11.5A1.5 1.5 0 0 1 17.5 21h-10A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3Z" />
+    <path d="M14 3v5h5M9 13h6M9 16.5h4" />
+  </svg>;
+}
+
+export function TrashIcon({ className }: IconProps) {
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden {...base}>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" />
+  </svg>;
+}

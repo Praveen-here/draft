@@ -102,6 +102,12 @@ Plus one switch: `APP_ENV=dev` (laptops) / `APP_ENV=demo` (Vercel production, de
 
 ---
 
+## 6b. Local Postgres (learner memory)
+
+- `DATABASE_URL` in `.env.local` (git-ignored), e.g. `postgres://<user>:<password>@localhost:5432/draft`. Never commit the real value.
+- The app creates its tables on first use (`src/lib/server/db.ts`). Without `DATABASE_URL`, or with Postgres down, the tutor works without memory.
+- Library: `pg` (node-postgres).
+
 ## 7. Other free tools (no keys needed)
 
 | Tool | Use | Note |

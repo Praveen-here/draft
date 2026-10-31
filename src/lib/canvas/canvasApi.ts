@@ -22,8 +22,13 @@ export type CanvasHandle = CanvasApi & {
   /** The current lesson (what was circled, the thread, graphs, term marks), read by <TutorOverlay>. */
   visuals: VisualStore;
   setSafeArea(area: SafeArea): void;
+  /** What to save: every shape except the document's own pages, and the handwriting already read (so it isn't read again). */
+  exportState(): SavedInk;
+  /** Put saved shapes back (after the pages are on the canvas), without treating them as new writing. */
+  restore(state: Partial<SavedInk>): void;
   dispose(): void;
 };
+export type SavedInk = { shapes: TLShape[]; recognised: [string, string][] };
 
 /** Call once from Canvas.onMount; dispose subscriptions when that editor unmounts. */
 export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): CanvasHandle {
@@ -50,6 +55,8 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
   let operationQueued = false;
   /** Our own edits (tagging a stroke, turning a circle blue) that must not count as new writing. */
   let tagging = false;
+  /** Saved shapes being put back: not new writing, no handwriting reads, no circle events. */
+  let restoring = false;
 
   const report = (error: unknown) => {
     if (disposed || (error instanceof DOMException && error.name === "AbortError")) return;
@@ -93,8 +100,9 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
     latestCircle = { ...context, recentLines: recentLines(context.bbox) };
     options.onContext?.(latestCircle);
     if (selectionChanged) {
-      clearTutorInk(editor);
-      visuals.clear();
+      // A new circle doesn't wipe anything: the conversation, graphs and marks stay for the whole document,
+      // and the thread moves to float beside the newest circle.
+      visuals.setAnchor(latestCircle.bbox);
       emit({ type: "circle", context: latestCircle });
     }
   };
@@ -187,7 +195,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
   };
 
   const watchStroke = (shape: TLShape) => {
-    if (disposed || (shape.type !== "draw" && shape.type !== "highlight") || shape.meta.author === "tutor") return;
+    if (disposed || restoring || (shape.type !== "draw" && shape.type !== "highlight") || shape.meta.author === "tutor") return;
     if (editor.getCurrentToolId() !== "select") selectedIds = [];
     activity();
     if (!shape.props.isComplete) return;
@@ -228,7 +236,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
         ? { ...shape, meta: { ...shape.meta, author: "student", kind: shape.meta.kind ?? "ink" } } : shape),
     editor.sideEffects.registerAfterCreateHandler("shape", watchStroke),
     editor.sideEffects.registerBeforeChangeHandler("shape", (before, after) => {
-      if (tagging) return after;
+      if (tagging || restoring) return after;
       // Grouping and undo/redo restore membership directly in the same atomic operation.
       if (!reconciling && before.meta.equationId !== after.meta.equationId) {
         motion = undefined;
@@ -242,7 +250,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
       return after;
     }),
     editor.sideEffects.registerAfterChangeHandler("shape", (before, after) => {
-      if (tagging) return;
+      if (tagging || restoring) return;
       if (before.meta.equationId !== after.meta.equationId) { activity(); return; }
       if (before.props === after.props && before.x === after.x && before.y === after.y &&
         before.rotation === after.rotation && before.parentId === after.parentId) return;
@@ -270,7 +278,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
       queueMicrotask(() => { if (!disposed) void refreshCircle(true).catch(report); });
     }),
     editor.sideEffects.registerAfterDeleteHandler("shape", (shape) => {
-      if ((shape.type !== "draw" && shape.type !== "highlight") || shape.meta.author === "tutor") return;
+      if (restoring || (shape.type !== "draw" && shape.type !== "highlight") || shape.meta.author === "tutor") return;
       if (circleId === shape.id) circleId = null;
       activity();
       queueMicrotask(() => { if (!disposed) void refreshCircle().catch(report); });
@@ -306,6 +314,24 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
     visuals,
     setSafeArea(area) {
       visuals.setSafe(area);
+    },
+    exportState() {
+      const shapes = editor.store.allRecords()
+        .filter((r): r is TLShape => r.typeName === "shape" && (r as TLShape).meta?.kind !== "page");
+      return { shapes, recognised: [...recognised] };
+    },
+    restore(state) {
+      if (disposed) return;
+      const shapes = (state.shapes ?? []).filter((r) => r && typeof r === "object" && r.typeName === "shape" && r.meta?.kind !== "page");
+      restoring = true;
+      try {
+        // All at once (groups before or after their strokes, it doesn't matter), and never part of undo.
+        if (shapes.length) editor.run(() => editor.store.put(shapes), { history: "ignore" });
+      } catch (error) { report(error); }
+      finally { restoring = false; }
+      for (const entry of state.recognised ?? []) {
+        if (Array.isArray(entry) && typeof entry[0] === "string" && typeof entry[1] === "string") remember(entry[0], entry[1]);
+      }
     },
     getEquations: () => lines().map((line) => ({ ...line, latex: recognised.get(fingerprint(line)) ?? null })),
     onEvent(listener) {

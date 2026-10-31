@@ -8,6 +8,10 @@ Last updated: 1 Nov 2026. Results go in [TEST_RESULTS.md](TEST_RESULTS.md).
 |---|---|---|
 | Types | `npx tsc --noEmit -p .` | no output |
 | Math checker (the lead's engine) | `npx tsx src/lib/math/check.test.ts` | `75/75 passed` (prints every case) |
+| Brain: the engine checking handwritten lines (practice sheet) | `npx tsx src/lib/agent/work.test.mts` | `20/20 passed` |
+| Brain: ticks, flags, hint offer, typed answers, solved (real engine, mocked Gemini, no database) | `npx tsx src/lib/agent/brain.test.mts` | `18/18 passed` |
+| Saved documents (dev server + `DATABASE_URL`) | `curl -X POST localhost:3000/api/documents -H "x-learner-id: test-learner-docs-01" -F "file=@samples/practice-sheet.pdf;type=application/pdf"` then `GET /api/documents` with the same header | a document id; the file in `storage/documents/<id>/`; the list has it. Delete test documents after |
+| Learner memory (needs the dev server and `DATABASE_URL`) | `curl "localhost:3000/api/learner?id=test-learner-0001"` | `"memory":true` and a summary |
 | Part D parser + visuals, Part A canvas geometry + read-ink route | `npx tsx --test src/lib/math/math.test.ts src/components/visuals/visuals.test.ts src/lib/canvas/tests/geometry.test.ts src/lib/canvas/tests/readInkRoute.test.ts` | `# pass 60`, `# fail 0` |
 | Folder ownership (part branches only) | `node .github/scripts/part-guard.mjs --local` | fails on lead branches like `integrate/all`; that's expected |
 
