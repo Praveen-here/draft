@@ -69,10 +69,29 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
   return (
     <section aria-label="Conversation with ∂raft" className="flex flex-col gap-1.5">
       {/* Who's talking, and a way out */}
-      <div className="app-glass mb-1 flex w-fit items-center gap-2 self-start rounded-full py-1 pl-1 pr-1.5">
+      {/* Also the handle: drag it to move the conversation, double-click to let it place itself again.
+          It stays at the top while older bubbles scroll under it, so it can always be grabbed. */}
+      <div
+        className="sticky top-3 z-10 -mx-3 -mt-1 px-3 pb-2.5 pt-1"
+        // Scroll edge effect: bubbles passing under the handle blur and fade, instead of meeting a hard edge.
+        style={{
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          maskImage: "linear-gradient(to bottom, #000 calc(100% - 12px), transparent)",
+          WebkitMaskImage: "linear-gradient(to bottom, #000 calc(100% - 12px), transparent)",
+        }}
+      >
+      <div
+        data-drag-handle=""
+        title="Drag to move · double-click to put it back"
+        className="app-glass flex w-fit cursor-grab touch-none select-none items-center gap-2 rounded-full py-1 pl-1 pr-1.5 active:cursor-grabbing"
+      >
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[0.8rem] font-semibold text-white">∂</span>
         <span className="text-[0.8rem] font-semibold text-text">∂raft</span>
         <span className="text-[0.76rem] font-medium text-muted">· {label}</span>
+        <svg aria-hidden viewBox="0 0 10 16" className="ml-0.5 h-3.5 w-2.5 text-[#b4b8c2]" fill="currentColor">
+          {[3, 8, 13].map((y) => <g key={y}><circle cx="2.5" cy={y} r="1.3" /><circle cx="7.5" cy={y} r="1.3" /></g>)}
+        </svg>
         <button
           type="button"
           onClick={close}
@@ -83,6 +102,7 @@ export function LessonCard({ brain, player, asked }: { brain: BrainApi; player: 
             <path d="M6 6l12 12M18 6L6 18" />
           </svg>
         </button>
+      </div>
       </div>
 
       <AnimatePresence initial={true}>
