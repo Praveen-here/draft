@@ -88,5 +88,6 @@ Track: **Education** · Team of 4
 
 ## Slides that need updating
 
+- Slides 3 and 5 describe the mic as **always on** with a gate deciding "is this for me?", and slide 4's wireframe shows a **Circle** button. Current plan: a **mic on/off button** (D15) and **automatic circle detection, no circle button** (D16).
 - Slides 1, 3, 4 and 5 mention **TypeSafe Jev** as the gate. Current plan is **Groq** (see [DECISIONS.md](DECISIONS.md)). Update them if the decision holds.
 - Add measured numbers (gate ~270 ms, etc.) once the full pipeline is tested.

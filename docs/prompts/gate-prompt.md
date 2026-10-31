@@ -2,6 +2,8 @@
 
 **Status:** tested 31 Oct 2026, 14/14 correct, median 266 ms on Groq `qwen/qwen3.8-27b`.
 
+> **Now a backup (D15):** the app has a mic on/off button, so the student says when they're talking to the tutor. This prompt was written for an always-on mic. If we keep it (Q10), it only runs while the mic is on, to skip thinking aloud.
+
 ## Settings
 
 ```json
