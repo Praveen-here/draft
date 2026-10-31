@@ -1,0 +1,60 @@
+.card {
+  margin: 0; width: 100%; min-width: 0; overflow: hidden; color: #0b0d12; background: #fff;
+  border: 1px solid #e3e7ef; border-radius: 20px; box-shadow: 0 3px 14px -8px #23345426;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.5;
+}
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 22px 24px 16px; }
+.header h3 { margin: 3px 0 8px; font-size: 17px; font-weight: 620; line-height: 1.3; letter-spacing: -.02em; }
+.eyebrow { margin: 0; color: #727b8d; font-size: 10px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+.formula { color: #2547d0; overflow-x: auto; padding-bottom: 3px; }
+.badge, .live { flex-shrink: 0; border-radius: 20px; padding: 3px 8px; font-size: 10px; font-weight: 600; color: #667085; background: #f2f4f8; }
+.live { background: #e8f6ee; color: #168a52; }
+.plot { padding: 0 14px; }
+.plot :global(.MafsView) {
+  --mafs-bg: #fff; --mafs-fg: #8992a3; --mafs-origin-color: #acb5c6; --mafs-line-color: #e6ebf5;
+  --grid-line-subdivision-color: #f2f5fa; --mafs-line-stroke-dash-style: 0;
+  --mafs-blue: #2547d0; --mafs-green: #168a52; touch-action: pan-y;
+}
+.plot :global(.MafsView text) { font-family: system-ui, sans-serif; font-size: 11px; }
+.legend { display: flex; align-items: center; gap: 16px; padding: 10px 24px 14px; color: #717b8c; font-size: 10px; }
+.legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { display: inline-block; width: 12px; height: 2px; border-radius: 2px; }
+.legend .range { margin-left: auto; }
+.readout { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #f7f9fd; padding: 12px 24px; font-size: 12px; color: #657086; }
+.slope { color: #168a52; font-weight: 600; }
+.controls { display: grid; gap: 15px; padding: 18px 24px 22px; }
+.controlLabel { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; font-size: 12px; color: #596579; }
+.controlLabel output { font-variant-numeric: tabular-nums; color: #2547d0; min-width: 44px; text-align: right; }
+.control input { width: 100%; min-height: 28px; margin: 0; accent-color: #2547d0; cursor: pointer; touch-action: pan-y; }
+.control input:focus-visible { outline: 2px solid #2547d0; outline-offset: 4px; border-radius: 6px; }
+.note { margin: 0; padding: 10px 24px 20px; font-size: 12px; color: #727b8d; }
+.error { min-height: 140px; display: grid; align-content: center; justify-items: center; padding: 24px; gap: 8px; background: #f7f9fd; text-align: center; color: #69758b; border-radius: 16px; }
+.error > span { font-size: 28px; color: #a1aec6; }
+.error p { margin: 0; max-width: 300px; font-size: 13px; }
+.numberLine { display: block; width: 100%; height: auto; padding: 8px 0 16px; }
+.tableWrap { margin: 0 24px 22px; max-height: 275px; overflow: auto; border: 1px solid #e8ecf4; border-radius: 10px; }
+.tableWrap table { width: 100%; border-collapse: collapse; text-align: center; }
+.tableWrap th, .tableWrap td { padding: 10px 12px; border-bottom: 1px solid #edf0f6; font-weight: 400; }
+.tableWrap thead { background: #f5f7fc; color: #2547d0; }
+.tableWrap tbody tr:last-child > * { border-bottom: 0; }
+.undefined { color: #838da0; font-size: 12px; }
+@media (max-width: 480px) {
+  .header { padding: 18px 18px 14px; }
+  .controls { padding-inline: 18px; }
+  .readout, .legend { padding-inline: 18px; }
+}
+@media (prefers-contrast: more) {
+  .card { border-color: #596579; box-shadow: none; }
+  .eyebrow, .note, .legend, .readout, .controlLabel { color: #343e51; }
+  .plot :global(.MafsView) { --mafs-fg: #343e51; --mafs-line-color: #bdc6d7; }
+}
+
+.dragHandle { cursor: grab; outline: none; touch-action: none; }
+.dragHandle[data-dragging="true"] { cursor: grabbing; }
+.handleFocus { opacity: 0; }
+.dragHandle:focus-visible .handleFocus { opacity: 1; }
+.dragHandle:hover .handleHalo, .dragHandle[data-dragging="true"] .handleHalo { fill-opacity: .24; stroke-opacity: .65; }
+.handleCaption { font: 600 10px system-ui, sans-serif !important; paint-order: stroke; stroke: #fff; stroke-width: 4px; pointer-events: none; }
+.dragHint { margin: 0; padding: 9px 24px 0; color: #527165; font-size: 11px; }
+.traceReadout { display: flex; justify-content: space-between; gap: 16px; padding: 12px 24px; background: #eef8f3; color: #166e45; font-size: 13px; }
+@media (prefers-contrast: more) { .dragHint { color: #28533e; } }

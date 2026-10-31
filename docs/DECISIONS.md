@@ -16,6 +16,7 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 | # | Decision | Status | Why |
 |---|---|---|---|
+| D31 | **Part D uses Mafs for teaching graphs**, the standalone Compute Engine LaTeX parser, math.js for real arithmetic/differentiation, and KaTeX labels. Parameter updates preserve mounted visuals; uncertain math is never marked correct. Part D ships a separate local preview with temporary canvas/caption adapters. | ✅ | Implements Q13 and the Part D brief; integration and validation details in [part-d/INTEGRATION.md](part-d/INTEGRATION.md). Mafs shares the patched root KaTeX through an npm override. |
 | D30 | **No chat panel.** Each circled problem gets a **lesson column** beside it (moves with pan/zoom): a lesson card (what ∂raft understood, the sentence being said, its question, "Solved"), then **explain cards** (`note` visual: variable / number / rule / mistake) with a leader line to their term, plus graphs and written steps. A new circle replaces the whole column; the ✕ on the lesson card closes it. Input is one floating glass **ask pill** (mic + text) above the toolbar. D28/D29 are taken on `part-d/math-visuals` | ✅ | A chat sidebar made it feel like a chatbot; explanations pinned to the exact terms feel like a tutor writing on the page |
 | D29 | Lines with **∫** are checked by computing each ∫ f dx as ∫ from 1 to x (Simpson's rule) and comparing the lines **up to a constant**; a final answer without a constant letter is flagged "missing + C" | ✅ | One rule covers integration by parts, `+ C`, and different-looking right answers (−cos²x/2 vs sin²x/2) without symbolic integration |
 | D28 | Math engine = **mathjs only** (already a dependency) + our own LaTeX/unicode converter; **no nerdamer, no compute-engine**. Checks numbers at random points; says `unsure`/`unparseable` instead of guessing, never throws | ✅ | No new library; the converter covers what students write; a false alarm is worse than staying quiet |
@@ -57,7 +58,7 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 | Q2 | Primary voice: Gradium pipeline or Gemini Live API? | Measure Gradium full-loop latency first |
 | Q3 | Hidden "full solve" feature: yes/no? | Must not be the headline |
 | Q4 | ~~Graph tool in the demo or nice-to-have?~~ | **Closed by D21:** must-have |
-| Q13 | Graph library: function-plot or Mafs? | Mafs is React and built for animated math; leaning Mafs |
+| Q13 | ~~Graph library: function-plot or Mafs?~~ | **Closed by D31:** Mafs, implemented and browser-tested by Part D |
 | Q14 | How does the brain judge "explain it back"? | Gemini rubric vs key ideas list |
 | Q15 | Circle + pause: offer help on its own, or wait to be asked? | D16 says wait; D22 leans proactive |
 | Q16 | One Gemini call per turn or per beat? | Per beat = more adaptive, more requests |

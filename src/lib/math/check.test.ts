@@ -51,6 +51,10 @@ const steps: Case[] = [
   ["x(x+1)", "x^2 + x", "ok"],
   ["xe^{x}", "x \\cdot e^x", "ok"],
   ["x^2", "\\foo{x}", "unclear", "unknown LaTeX"],
+  ["\\log_{2}(8)", "3", "ok", "log base 2"],
+  ["\\log(100)", "2", "ok", "LaTeX \\log is base 10"],
+  ["\\log_2 x + \\log_2 x", "2\\log_{2}(x)", "ok"],
+  ["\\ln(e^{3})", "3", "ok"],
 
   // False alarms are the worst failure (the tutor interrupts wrongly), so: many right-but-different forms
   ["e^{2x}", "(e^x)^2", "ok"],

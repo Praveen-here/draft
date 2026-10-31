@@ -1,6 +1,6 @@
 import type { MathApi, StepCheck } from "@/lib/contracts";
-import { compare, fmt, proportional, roots, type Mode } from "./compare";
-import { parseLatex, parseLine, splitTopLevel, type Expr, type Line } from "./parse";
+import { compare, fmt, proportional, roots, type Mode } from "./sampling";
+import { parseLatex, parseLine, splitTopLevel, type Expr, type Line } from "./lineParse";
 
 /**
  * The math engine. The brain trusts this over Gemini.

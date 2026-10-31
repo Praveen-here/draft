@@ -1,4 +1,4 @@
-import type { Expr } from "./parse";
+import type { Expr } from "./lineParse";
 
 /** exact: same value everywhere. constant: differ by a fixed constant (indefinite integrals, + C). */
 export type Mode = "exact" | "constant";

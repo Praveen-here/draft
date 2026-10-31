@@ -1,206 +1,208 @@
 "use client";
 
-import { compile, parse, type EvalFunction } from "mathjs";
-import { useId, useMemo, useSyncExternalStore } from "react";
-import type { PlotState } from "./plotState";
+import { useId, useMemo, useState, type SVGProps } from "react";
+import { Coordinates, Line, Mafs, Point, Polygon, Polyline } from "mafs";
+import { differentiateExpression, parseLatex } from "@/lib/math";
+import { MathText } from "./MathText";
+import { DragHandle } from "./DragHandle";
+import { areaPolygons, formatNumber, sampleCurve, tangentAt, tickStep } from "./geometry";
+import type { CurveSpec, Range, VisualSpec } from "./model";
+import "mafs/core.css";
+import styles from "./visuals.module.css";
 
-const W = 380;
-const H = 270;
-const PAD = { l: 14, r: 14, t: 40, b: 16 };
-const SAMPLES = 260;
-
-const INK = "#2547d0";
+const BLUE = "#2547d0";
 const GREEN = "#168a52";
+function svgMarker<T extends SVGElement>(id: string): SVGProps<T> & { "data-testid": string } {
+  return { "data-testid": id };
+}
+type Controls = { onParamChange?: (param: string, value: number) => void; onInteractionStart?: () => void; animating?: boolean };
 
-/** Graph of a function whose parameters can change live while ∂raft talks. */
-export function Graph({ state }: { state: PlotState }) {
-  const snap = useSyncExternalStore(state.subscribe, state.get, state.get);
-  const f = useMemo(() => compileFn(snap.fn), [snap.fn]);
-  const clipId = `clip-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-
-  // Fix the y-range when the graph appears, so axes stay still while values slide.
-  const yRange = useMemo(
-    () => snap.yRange ?? autoRange(f, snap.xRange, snap.params),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally computed once per function
-    [f, snap.xRange[0], snap.xRange[1], snap.yRange?.[0], snap.yRange?.[1]],
-  );
-
-  const [x0, x1] = snap.xRange;
-  const [y0, y1] = yRange;
-  const sx = (x: number) => PAD.l + ((x - x0) / (x1 - x0)) * (W - PAD.l - PAD.r);
-  const sy = (y: number) => PAD.t + (1 - (y - y0) / (y1 - y0)) * (H - PAD.t - PAD.b);
-  const at = (x: number) => evaluate(f, x, snap.params);
-
-  const curve = pathFor(at, x0, x1, sx, sy, y0, y1);
-
-  let areaPath = "";
-  if (snap.area) {
-    const [a, b] = [Math.max(x0, Math.min(snap.area[0], snap.area[1])), Math.min(x1, Math.max(snap.area[0], snap.area[1]))];
-    const pts: string[] = [`M${sx(a)},${sy(clampY(0, y0, y1))}`];
-    for (let i = 0; i <= 80; i++) {
-      const x = a + ((b - a) * i) / 80;
-      const y = at(x);
-      if (Number.isFinite(y)) pts.push(`L${sx(x)},${sy(clampY(y, y0, y1))}`);
-    }
-    pts.push(`L${sx(b)},${sy(clampY(0, y0, y1))}Z`);
-    areaPath = pts.join(" ");
-  }
-
-  let tangent: { x: number; y: number; slope: number } | null = null;
-  if (snap.tangentParam && snap.params[snap.tangentParam] !== undefined) {
-    const x = snap.params[snap.tangentParam];
-    const h = (x1 - x0) / 1000;
-    const y = at(x);
-    const slope = (at(x + h) - at(x - h)) / (2 * h);
-    if (Number.isFinite(y) && Number.isFinite(slope)) tangent = { x, y, slope };
-  }
-
-  const label = prettify(snap.fn);
-  const chips = Object.entries(snap.params).map(([k, v]) => `${k} = ${round(v)}`);
-  if (tangent) chips.push(`slope = ${round(tangent.slope)}`);
-
-  return (
-    <div className="h-full w-full overflow-hidden rounded-[18px] border border-[rgba(15,23,42,0.08)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05),0_16px_40px_-16px_rgba(23,37,110,0.28)]">
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`Graph of y = ${label}`}>
-        <defs>
-          <clipPath id={clipId}>
-            <rect x={PAD.l} y={PAD.t} width={W - PAD.l - PAD.r} height={H - PAD.t - PAD.b} />
-          </clipPath>
-        </defs>
-
-        <text x={PAD.l} y={24} fontSize={15} fontWeight={600} fill="#0b0d12" letterSpacing="-0.01em">
-          y = {label}
-        </text>
-        <text x={W - PAD.r} y={24} fontSize={13} fontWeight={600} fill={INK} textAnchor="end" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {chips.join("   ")}
-        </text>
-
-        <g clipPath={`url(#${clipId})`}>
-          <Grid x0={x0} x1={x1} y0={y0} y1={y1} sx={sx} sy={sy} />
-          {areaPath && <path d={areaPath} fill="rgba(37,71,208,0.14)" />}
-          <path d={curve} fill="none" stroke={INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
-          {tangent && (
-            <>
-              <line
-                x1={sx(x0)}
-                y1={sy(tangent.y + tangent.slope * (x0 - tangent.x))}
-                x2={sx(x1)}
-                y2={sy(tangent.y + tangent.slope * (x1 - tangent.x))}
-                stroke={GREEN}
-                strokeWidth={2}
-                strokeDasharray="6 5"
-              />
-              <circle cx={sx(tangent.x)} cy={sy(tangent.y)} r={5} fill={GREEN} stroke="#fff" strokeWidth={2} />
-            </>
-          )}
-        </g>
-      </svg>
-    </div>
-  );
+export function VisualError({ message = "I couldn't draw this expression yet. Check the function and its values." }: { message?: string }) {
+  return <div className={styles.error} role="status"><span aria-hidden="true">∿</span><p>{message}</p></div>;
 }
 
-function Grid({ x0, x1, y0, y1, sx, sy }: { x0: number; x1: number; y0: number; y1: number; sx: (x: number) => number; sy: (y: number) => number }) {
-  const xs = ticks(x0, x1);
-  const ys = ticks(y0, y1);
-  return (
-    <g>
-      {xs.map((x) => (
-        <line key={`x${x}`} x1={sx(x)} x2={sx(x)} y1={0} y2={H} stroke="rgba(60,60,67,0.08)" />
-      ))}
-      {ys.map((y) => (
-        <line key={`y${y}`} y1={sy(y)} y2={sy(y)} x1={0} x2={W} stroke="rgba(60,60,67,0.08)" />
-      ))}
-      {y0 < 0 && y1 > 0 && <line x1={0} x2={W} y1={sy(0)} y2={sy(0)} stroke="rgba(60,60,67,0.45)" strokeWidth={1.2} />}
-      {x0 < 0 && x1 > 0 && <line y1={0} y2={H} x1={sx(0)} x2={sx(0)} stroke="rgba(60,60,67,0.45)" strokeWidth={1.2} />}
-      {xs.filter((x) => x !== 0).map((x) => (
-        <text key={`lx${x}`} x={sx(x)} y={Math.min(H - PAD.b + 12, Math.max(PAD.t + 12, sy(0) + 13))} fontSize={10} fill="#8a8f9c" textAnchor="middle">
-          {round(x)}
-        </text>
-      ))}
-    </g>
-  );
+function ParamControls({ spec, onParamChange, onInteractionStart }: { spec: CurveSpec } & Controls) {
+  const id = useId();
+  if (!onParamChange || !Object.keys(spec.params).length) return null;
+  return <div className={styles.controls} onPointerDown={(event) => { event.stopPropagation(); onInteractionStart?.(); }}>
+    {Object.entries(spec.params).map(([name, value]) => {
+      const position = name === "at" || name === "from" || name === "to";
+      const label = name === "at" ? "Tangent position" : name === "from" ? "Area start"
+        : name === "to" ? "Area end" : "Parameter " + name;
+      const min = position ? spec.xRange[0] : Math.min(-5, Math.floor(value));
+      const max = position ? spec.xRange[1] : Math.max(5, Math.ceil(value));
+      return <div className={styles.control} key={name}>
+        <div className={styles.controlLabel}>
+          <label htmlFor={id + name}>{label}</label>
+          <output htmlFor={id + name}><MathText latex={formatNumber(value)} /></output>
+        </div>
+        <input id={id + name} type="range" min={min} max={max} step={(max - min) / 200}
+          value={value} aria-label={label} aria-valuetext={formatNumber(value)}
+          onChange={(event) => { onInteractionStart?.(); onParamChange(name, Number(event.target.value)); }} />
+      </div>;
+    })}
+  </div>;
 }
 
-function compileFn(fn: string): EvalFunction | null {
-  try {
-    return compile(fn.replace(/\*\*/g, "^"));
-  } catch {
-    return null;
-  }
+function Curve({ spec, onParamChange, onInteractionStart, animating = false }: { spec: CurveSpec } & Controls) {
+  const [traceAt, setTraceAt] = useState(1);
+  const expression = useMemo(() => parseLatex(spec.fn), [spec.fn]);
+  const derivative = useMemo(() => expression && spec.kind === "tangent"
+    ? differentiateExpression(expression) : null, [expression, spec.kind]);
+  const geometry = useMemo(() => {
+    if (!expression) return null;
+    const missing = expression.variables.filter((name) => name !== "x" && !Object.hasOwn(spec.params, name));
+    if (missing.length) return { error: "Give a value for " + missing.join(", ") + " to draw this curve." };
+    const evaluate = (x: number) => expression.evaluate({ ...spec.params, x });
+    return {
+      segments: sampleCurve(evaluate, spec.xRange, spec.yRange),
+      tangent: spec.kind === "tangent" ? tangentAt(expression, derivative, spec.params.at, spec.params) : null,
+      areas: spec.kind === "area" ? areaPolygons(evaluate, spec.params.from, spec.params.to, spec.yRange) : [],
+    };
+  }, [expression, derivative, spec]);
+  const at = spec.kind === "tangent" ? spec.params.at : Math.max(spec.xRange[0], Math.min(spec.xRange[1], traceAt));
+  const value = expression?.evaluate({ ...spec.params, x: at }) ?? NaN;
+  const inView = Number.isFinite(value) && value >= spec.yRange[0] && value <= spec.yRange[1];
+  const baseline = Math.max(spec.yRange[0], Math.min(spec.yRange[1], 0));
+  const movable = spec.kind === "plot" || !!onParamChange;
+  const title = spec.kind === "tangent" ? "The slope at a point" : spec.kind === "area" ? "Area under the curve" : "A function, in view";
+  return <figure className={styles.card} data-visual-kind={spec.kind}>
+    <figcaption className={styles.header}>
+      <div><p className={styles.eyebrow}>{spec.kind === "plot" ? "Function graph" : spec.kind === "tangent" ? "Tangent line" : "Signed area"}</p>
+        <h3>{title}</h3>
+        <div className={styles.formula}><MathText latex={"f(x)=" + (expression?.latex || spec.fn)} /></div>
+      </div>
+      <span className={animating ? styles.live : styles.badge}>{animating ? "● Live" : "Explore"}</span>
+    </figcaption>
+    {!geometry || "error" in geometry ? <VisualError message={geometry && "error" in geometry ? geometry.error : undefined} /> :
+      <>
+        <div className={styles.plot} role="group" aria-label={title + " for " + spec.fn}>
+          <Mafs height={270} pan={false} zoom={false} preserveAspectRatio={false}
+            viewBox={{ x: spec.xRange, y: spec.yRange, padding: 0.3 }}>
+            <Coordinates.Cartesian
+              xAxis={{ lines: tickStep(spec.xRange[1] - spec.xRange[0]) }}
+              yAxis={{ lines: tickStep(spec.yRange[1] - spec.yRange[0]) }} />
+            {geometry.areas.map((points, index) =>
+              <Polygon key={"area" + index} points={points} color={GREEN} fillOpacity={0.18} strokeOpacity={0}
+                svgPolygonProps={svgMarker<SVGPolygonElement>("shaded-area")} />)}
+            {geometry.segments.map((points, index) =>
+              <Polyline key={index} points={points} color={BLUE} weight={2.5}
+                svgPolylineProps={svgMarker<SVGPolylineElement>("function-curve")} />)}
+            {geometry.tangent && <>
+              <Line.PointSlope point={geometry.tangent.point} slope={geometry.tangent.slope} color={GREEN} weight={2} />
+              <Line.Segment point1={[geometry.tangent.point[0], 0]} point2={geometry.tangent.point}
+                color={GREEN} opacity={0.4} style="dashed" />
+              {!onParamChange && <Point x={geometry.tangent.point[0]} y={geometry.tangent.point[1]} color={GREEN}
+                svgCircleProps={svgMarker<SVGCircleElement>("tangent-point")} />}
+            </>}
+            {spec.kind !== "area" && movable && <>
+              {spec.kind === "plot" && inView && <Line.Segment point1={[at, baseline]} point2={[at, value]}
+                color={GREEN} opacity={0.4} style="dashed" />}
+              <DragHandle point={[at, inView ? value : baseline]} range={spec.xRange} color={GREEN}
+                label={spec.kind === "tangent" ? "Drag tangent point" : "Point on curve"}
+                marker={spec.kind === "tangent" ? "tangent-point" : "trace-point"}
+                onChange={(x) => spec.kind === "tangent" ? onParamChange?.("at", x) : setTraceAt(x)}
+                onInteractionStart={onInteractionStart} />
+            </>}
+            {spec.kind === "area" && onParamChange && (["from", "to"] as const).map((boundary) => {
+              const x = spec.params[boundary];
+              return <g key={boundary}>
+                <Line.Segment point1={[x, spec.yRange[0]]} point2={[x, spec.yRange[1]]}
+                  color={GREEN} style="dashed" opacity={0.35} />
+                <DragHandle point={[x, baseline]} range={spec.xRange} color={boundary === "from" ? BLUE : GREEN}
+                  label={boundary === "from" ? "Drag area start" : "Drag area end"}
+                  marker={"area-" + boundary} caption={boundary === "from" ? "start" : "end"}
+                  onChange={(next) => onParamChange(boundary, next)} onInteractionStart={onInteractionStart} />
+              </g>;
+            })}
+          </Mafs>
+        </div>
+        {movable && <p className={styles.dragHint}>{spec.kind === "area"
+          ? "Drag start and end to reshape the shaded region."
+          : "Drag the green point. Use ← → for a precise move."}</p>}
+        <div className={styles.legend}><span><i style={{ background: BLUE }} />Function</span>
+          {spec.kind !== "plot" && <span><i style={{ background: GREEN }} />{spec.kind === "tangent" ? "Tangent" : "Area"}</span>}
+          <span className={styles.range}><MathText latex={formatNumber(spec.xRange[0]) + "\\leq x\\leq" + formatNumber(spec.xRange[1])} /></span>
+        </div>
+        {spec.kind === "tangent" && <div className={styles.readout}>
+          <span>At <MathText latex={"x=" + formatNumber(spec.params.at)} /></span>
+          <span className={styles.slope} data-testid="slope-value">{geometry.tangent
+            ? <>Slope <MathText latex={formatNumber(geometry.tangent.slope)} /></>
+            : "No finite tangent here"}</span>
+        </div>}
+        {spec.kind === "area" && <div className={styles.readout}>
+          <span>Shaded between <MathText latex={"x=" + formatNumber(spec.params.from)} /> and <MathText latex={"x=" + formatNumber(spec.params.to)} /></span>
+        </div>}
+        {spec.kind === "plot" && <div className={styles.traceReadout} data-testid="trace-value">
+          <span><MathText latex={"x=" + formatNumber(at)} /></span>
+          <span><MathText latex={"f(x)=" + (Number.isFinite(value) ? formatNumber(value) : "\\text{undefined}")} /></span>
+        </div>}
+        {spec.kind !== "area" && !inView && <p className={styles.note}>{Number.isFinite(value)
+          ? "The curve is outside this view at the selected x. Drag the handle along the axis."
+          : "The function is undefined at this x. Drag the handle along the axis."}</p>}
+        {spec.kind === "plot" && Object.keys(spec.params).length > 0 && <div className={styles.readout}>
+          {Object.entries(spec.params).map(([name, value]) =>
+            <span key={name} data-param={name}><MathText latex={name + "=" + formatNumber(value)} /></span>)}
+        </div>}
+        {!geometry.segments.length && <p className={styles.note}>No finite curve is visible in this range.</p>}
+      </>}
+    <ParamControls spec={spec} onParamChange={onParamChange} onInteractionStart={onInteractionStart} />
+  </figure>;
 }
 
-function evaluate(f: EvalFunction | null, x: number, params: Record<string, number>): number {
-  if (!f) return NaN;
-  try {
-    const y = f.evaluate({ ...params, x, e: Math.E, pi: Math.PI });
-    return typeof y === "number" ? y : NaN;
-  } catch {
-    return NaN;
-  }
+/** Public standalone plot. Pass updated params, or onParamChange to show its sliders. */
+export function Graph({ fn, xRange, params = {}, yRange = [-4, 8], onParamChange, onInteractionStart, animating }: {
+  fn: string; xRange: Range; params?: Record<string, number>; yRange?: Range;
+} & Controls) {
+  const spec = useMemo<CurveSpec>(() => ({ kind: "plot", fn, xRange, yRange, params }), [fn, xRange, yRange, params]);
+  return <Curve spec={spec} onParamChange={onParamChange} onInteractionStart={onInteractionStart} animating={animating} />;
 }
 
-function autoRange(f: EvalFunction | null, [x0, x1]: [number, number], params: Record<string, number>): [number, number] {
-  const ys: number[] = [];
-  for (let i = 0; i <= 120; i++) {
-    const y = evaluate(f, x0 + ((x1 - x0) * i) / 120, params);
-    if (Number.isFinite(y)) ys.push(y);
-  }
-  if (!ys.length) return [-5, 5];
-  ys.sort((a, b) => a - b);
-  let lo = ys[Math.floor(ys.length * 0.03)];
-  let hi = ys[Math.ceil(ys.length * 0.97) - 1];
-  lo = Math.min(lo, 0);
-  hi = Math.max(hi, 0);
-  if (hi - lo < 1e-6) [lo, hi] = [lo - 1, hi + 1];
-  const pad = (hi - lo) * 0.12;
-  return [lo - pad, hi + pad];
+function NumberLine({ spec }: { spec: Extract<VisualSpec, { kind: "numberLine" }> }) {
+  const width = 420, pad = 28;
+  const position = (value: number) => pad + (value - spec.range[0]) / (spec.range[1] - spec.range[0]) * (width - 2 * pad);
+  const step = tickStep(spec.range[1] - spec.range[0]);
+  const ticks: number[] = [];
+  for (let value = Math.ceil(spec.range[0] / step) * step; value <= spec.range[1] + step * 0.001; value += step) ticks.push(value);
+  const visible = spec.values.filter((value) => value >= spec.range[0] && value <= spec.range[1]);
+  return <figure className={styles.card} data-visual-kind="numberLine">
+    <figcaption className={styles.header}><div><p className={styles.eyebrow}>Number line</p><h3>Where the values belong</h3></div></figcaption>
+    <svg className={styles.numberLine} viewBox={"0 0 " + width + " 110"} role="img"
+      aria-label={"Number line from " + spec.range[0] + " to " + spec.range[1] + ", with points " + visible.join(", ")}>
+      <line x1={pad} y1={53} x2={width - pad} y2={53} stroke="#8a8f9c" strokeWidth={1.5} />
+      {ticks.map((value) => <g key={value}>
+        <line x1={position(value)} y1={47} x2={position(value)} y2={59} stroke="#8a8f9c" />
+        <text x={position(value)} y={82} textAnchor="middle" fill="#5b6170" fontSize={12}>{formatNumber(value)}</text>
+      </g>)}
+      {visible.map((value, index) => <g key={index}>
+        <circle cx={position(value)} cy={53} r={6} fill={BLUE} />
+        <text x={position(value)} y={29} textAnchor="middle" fill={BLUE} fontSize={13} fontWeight={600}>{formatNumber(value)}</text>
+      </g>)}
+    </svg>
+    <p className={styles.note}>Further right means greater. Compare the distance from zero.</p>
+  </figure>;
 }
 
-function pathFor(at: (x: number) => number, x0: number, x1: number, sx: (x: number) => number, sy: (y: number) => number, y0: number, y1: number) {
-  const span = y1 - y0;
-  let d = "";
-  let pen = false;
-  for (let i = 0; i <= SAMPLES; i++) {
-    const x = x0 + ((x1 - x0) * i) / SAMPLES;
-    const y = at(x);
-    if (!Number.isFinite(y) || y < y0 - span * 4 || y > y1 + span * 4) {
-      pen = false;
-      continue;
-    }
-    d += `${pen ? "L" : "M"}${sx(x).toFixed(2)},${sy(y).toFixed(2)}`;
-    pen = true;
-  }
-  return d;
+function ValueTable({ spec }: { spec: Extract<VisualSpec, { kind: "table" }> }) {
+  const expression = useMemo(() => parseLatex(spec.fn), [spec.fn]);
+  return <figure className={styles.card} data-visual-kind="table">
+    <figcaption className={styles.header}><div><p className={styles.eyebrow}>Table of values</p><h3>Look for the pattern</h3>
+      <div className={styles.formula}><MathText latex={"f(x)=" + (expression?.latex || spec.fn)} /></div>
+    </div></figcaption>
+    {!expression ? <VisualError /> : <div className={styles.tableWrap}><table>
+      <thead><tr><th scope="col"><MathText latex="x" /></th><th scope="col"><MathText latex="f(x)" /></th></tr></thead>
+      <tbody>{spec.xs.map((x, index) => {
+        const value = expression.evaluate({ ...spec.params, x });
+        return <tr key={index}><th scope="row"><MathText latex={formatNumber(x)} /></th><td>
+          {Number.isFinite(value) ? <MathText latex={formatNumber(value)} /> : <span className={styles.undefined}>undefined</span>}
+        </td></tr>;
+      })}</tbody>
+    </table></div>}
+  </figure>;
 }
 
-function ticks(a: number, b: number): number[] {
-  const step = niceStep((b - a) / 6);
-  const out: number[] = [];
-  for (let v = Math.ceil(a / step) * step; v <= b; v += step) out.push(Number(v.toFixed(6)));
-  return out;
-}
-
-function niceStep(raw: number) {
-  const p = Math.pow(10, Math.floor(Math.log10(raw)));
-  const n = raw / p;
-  return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p;
-}
-
-const clampY = (y: number, y0: number, y1: number) => Math.min(y1, Math.max(y0, y));
-const round = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : Number(v.toFixed(2)).toString());
-
-/** "a*x^2" → "a·x²", readable on the graph label. */
-function prettify(fn: string) {
-  const sup: Record<string, string> = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" };
-  try {
-    parse(fn);
-  } catch {
-    return fn;
-  }
-  return fn
-    .replace(/\s+/g, "")
-    .replace(/\^(\d)/g, (_, d: string) => sup[d])
-    .replace(/exp\(x\)/g, "eˣ")
-    .replace(/\*/g, "·")
-    .replace(/sqrt/g, "√");
+export function TeachingVisual({ spec, ...controls }: { spec: VisualSpec } & Controls) {
+  if (spec.kind === "numberLine") return <NumberLine spec={spec} />;
+  if (spec.kind === "table") return <ValueTable spec={spec} />;
+  return <Curve spec={spec} {...controls} />;
 }
