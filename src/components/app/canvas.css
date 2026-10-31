@@ -1,0 +1,39 @@
+.canvas-tutor-step {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 12px 18px;
+  border-left: 3px solid currentColor;
+  border-radius: 12px;
+  background: #f1f5ff;
+}
+.canvas-equation { overflow: auto; font-size: 23px; }
+.canvas-equation .katex-display { margin: 0.35em 0; text-align: left; }
+.equation-layer-math .katex-display { margin: 0; text-align: left; }
+.equation-layer:focus-visible { outline: 2px solid #2547d0; outline-offset: -2px; }
+.canvas-visual {
+  pointer-events: all;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #cdd8f5;
+  border-radius: 16px;
+  background: white;
+  color: #1d1d1f;
+  box-shadow: 0 6px 20px #14265412;
+}
+.canvas-panel {
+  border: 1px solid #dfe4ee;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0 4px 18px #1426540d;
+  backdrop-filter: blur(12px);
+}
+.draft-canvas button:focus-visible, .draft-canvas summary:focus-visible,
+.draft-canvas input:focus-visible {
+  outline: 3px solid #2547d0;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .canvas-panel { background: white; backdrop-filter: none; border-color: #344054; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draft-canvas .animate-spin { animation: none; }
+}

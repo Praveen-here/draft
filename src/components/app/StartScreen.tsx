@@ -84,7 +84,7 @@ export function StartScreen({ onOpen }: { onOpen: (source: DocSource) => void })
                     type="button"
                     role="radio"
                     aria-checked={paper === p.id}
-                    onPointerDown={() => setPaper(p.id)}
+                    onClick={() => setPaper(p.id)}
                     className={`pressable relative rounded-full px-3.5 py-1.5 text-[0.85rem] font-semibold transition-colors duration-200 ${
                       paper === p.id ? "text-ink" : "text-muted hover:text-text"
                     }`}

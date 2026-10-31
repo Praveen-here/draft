@@ -2,6 +2,37 @@
 
 Everything we've tested so far, with dates and what we learned.
 
+## 31 Oct 2026: Part A canvas implementation
+
+- **16 unit checks passed:** circle geometry and false positives, malformed inputs,
+  writing rows/superscripts/columns, non-overlapping visual placement, recognition validation,
+  Gemini transport, dev/demo separation, body/image limits, quota failures, cancellation
+  and server deadlines. Generation responses are mocked; no real provider calls in the suite.
+- **17 browser checks passed:** generated two-page PDF and rotation, selected page/text and individual terms,
+  separate combined/ink PNG crops, line events and caching, changed-stroke invalidation,
+  tutor marks, graph mounting/replacement/unmount, safe clearing and undo, cancellation
+  after erasing, visible reading feedback, unreadable-line recovery, student highlights,
+  deleted-circle cleanup and idle timing after highlighting.
+- **TypeScript and production build passed.**
+- Normal app: opened a generated PDF through the file picker, drew with scripted pointer
+  events, changed pen colour from the keyboard, and verified that a simulated recognition
+  quota error preserves writing. The unconnected voice control stays off and reports its status.
+- Production server: /app returned 200 and /app/canvas-test returned 404.
+- Browser recognition uses an explicit fixture reader returning `x + C`; these results
+  do **not** establish Gemini accuracy, live voice operation or mathematical correctness.
+- **Live provider checks passed with Gemini 3.5 Flash-Lite:** native Chrome mouse strokes
+  travelled through the normal canvas crop and server route and returned `X + C` (11.7 seconds).
+  A drawn superscript returned `x^2` (2.1 seconds); `2 + 2 = 5` was preserved exactly
+  (1.5 seconds); a blank image was rejected with 422 (1.9 seconds).
+- The desktop flow also verified selection, keyboard colour controls and no duplicate
+  recognition call when circling unchanged writing. These are controlled stroke samples,
+  not a broad benchmark of human handwriting accuracy.
+- Live testing found that `gemini-2.5-flash` still appeared in model metadata but rejected
+  generation for new users. The reader now uses the tested `gemini-3.5-flash-lite` model.
+  The user confirmed billing is disabled; demo credentials were not used and keys were not printed.
+- Run instructions and remaining device/demo checks: [Part A guide](../src/lib/canvas/README.md)
+  and [handoff](PART_A_HANDOFF.md).
+
 ---
 
 ## 31 Oct 2026: Math engine (Part D)

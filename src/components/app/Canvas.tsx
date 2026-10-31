@@ -18,17 +18,35 @@ import { loadPages, PAGE_WIDTH } from "./loadPages";
 import { PaperBackground } from "./PaperBackground";
 import { Toolbar } from "./Toolbar";
 import { PAPERS, type DocSource, type Paper } from "./types";
+import { createCanvasApi, type CanvasHandle, type InkRecognizer } from "@/lib/canvas";
+import { TutorInkShapeUtil } from "./TutorInkShape";
+import { CanvasFeedback } from "./CanvasFeedback";
+import { EquationPanel } from "./EquationPanel";
+import "./canvas.css";
 
 const PAGE_GAP = 32;
 const spring = { type: "spring" as const, bounce: 0, duration: 0.35 };
+const shapeUtils = [TutorInkShapeUtil];
 
 type Status = { state: "ready" } | { state: "loading"; label: string } | { state: "error"; message: string };
 
-export function Canvas({ source, onExit }: { source: DocSource; onExit: () => void }) {
+export type CanvasProps = {
+  source: DocSource;
+  onExit: () => void;
+  onReady?: (api: CanvasHandle, editor: Editor) => void | (() => void);
+  recogniseInk?: InkRecognizer;
+  /** Run the tutor (brain, voice, lesson column) on this canvas. Off for the canvas test page. */
+  tutor?: boolean;
+};
+
+export function Canvas({ source, onExit, onReady, recogniseInk, tutor = true }: CanvasProps) {
   const [paper, setPaper] = useState<Paper>(source.paper);
   const [status, setStatus] = useState<Status>(
     source.kind === "file" ? { state: "loading", label: "Opening your document…" } : { state: "ready" },
   );
+  const [api, setApi] = useState<CanvasHandle | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
 
   const isFile = source.kind === "file";
   const title = isFile ? source.file.name.replace(/\.[^.]+$/, "") : "Untitled";
@@ -41,16 +59,26 @@ export function Canvas({ source, onExit }: { source: DocSource; onExit: () => vo
 
   const onMount = useCallback(
     (editor: Editor) => {
+      let cancelled = false;
       editor.setCurrentTool("draw");
       editor.user.updateUserPreferences({ isSnapMode: false });
+      const canvasApi = createCanvasApi(editor, { recogniseInk, onError: setNotice, onReading: setReading });
+      setApi(canvasApi);
+      const disconnect = onReady?.(canvasApi, editor);
+      const cleanup = () => {
+        cancelled = true;
+        disconnect?.();
+        canvasApi.dispose();
+      };
 
       if (source.kind === "blank") {
         editor.setCamera({ x: 0, y: 0, z: 1 });
-        return;
+        return cleanup;
       }
 
       loadPages(source.file)
         .then((pages) => {
+          if (cancelled) return;
           let y = 0;
           editor.run(
             () => {
@@ -78,7 +106,7 @@ export function Canvas({ source, onExit }: { source: DocSource; onExit: () => vo
                   x: (PAGE_WIDTH - page.w) / 2,
                   y,
                   isLocked: true,
-                  meta: { kind: "page", page: i + 1 },
+                  meta: { kind: "page", page: i + 1, textItems: page.textItems },
                   props: { assetId, w: page.w, h: page.h },
                 });
                 y += page.h + PAGE_GAP;
@@ -91,24 +119,29 @@ export function Canvas({ source, onExit }: { source: DocSource; onExit: () => vo
           setStatus({ state: "ready" });
         })
         .catch((err: unknown) => {
+          if (cancelled) return;
           setStatus({
             state: "error",
             message:
               err instanceof Error && err.message === "unsupported"
                 ? "This file type isn't supported yet. Try a PDF or an image."
-                : "We couldn't open this file. It may be damaged or password-protected.",
+                : err instanceof Error && /^(Please choose|One page)/.test(err.message)
+                  ? err.message : "We couldn't open this file. It may be damaged or password-protected.",
           });
         });
+      return cleanup;
     },
-    [source],
+    [source, onReady, recogniseInk],
   );
 
   return (
     <div className="draft-canvas fixed inset-0">
-      <Tldraw hideUi components={components} onMount={onMount}>
+      <Tldraw hideUi components={components} shapeUtils={shapeUtils} onMount={onMount}>
         <TopBar title={title} paper={paper} onPaper={setPaper} onExit={onExit} />
         <Toolbar />
-        <TutorSession />
+        {api && tutor && <TutorSession canvas={api} />}
+        {api && <CanvasFeedback api={api} reading={reading} notice={notice} onNotice={setNotice} />}
+        {api && <EquationPanel api={api} reading={reading} onNotice={setNotice} />}
       </Tldraw>
 
       <AnimatePresence>
@@ -206,7 +239,7 @@ function TopBar({
               type="button"
               role="radio"
               aria-checked={paper === p.id}
-              onPointerDown={() => onPaper(p.id)}
+              onClick={() => onPaper(p.id)}
               className={`app-press relative h-10 rounded-xl px-3.5 text-[0.85rem] font-semibold transition-colors duration-200 ${
                 paper === p.id ? "text-ink" : "text-[#3a3a3c]"
               }`}
