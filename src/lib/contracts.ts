@@ -49,9 +49,9 @@ export type InkColour = "blue" | "green" | "red";
 
 export type VisualAction =
   | { type: "highlight"; target: Target; colour: InkColour }
-  | { type: "writeStep"; latex: string; near: Target }
+  | { type: "writeStep"; text: string; near: Target } // one short line, unicode math (e.g. "x → 1")
   | { type: "mark"; target: Target; kind: "tick" | "cross" | "circle" }
-  | { type: "plot"; id: string; fn: string; xRange: [number, number]; params?: Record<string, number>; near: Target }
+  | { type: "plot"; id: string; fn: string; xRange: [number, number]; yRange?: [number, number]; params?: Record<string, number>; near: Target }
   | { type: "animateParam"; plotId: string; param: string; from: number; to: number; ms: number }
   | { type: "showVisual"; kind: "tangent" | "area" | "numberLine" | "table"; args: Record<string, unknown>; near: Target };
 
@@ -61,6 +61,19 @@ export type Beat = {
   visuals: VisualAction[];
 };
 
+/** What the brain understood about the question (shown in the panel, useful for debugging). */
+export type TurnInsight = {
+  kind: "next-step" | "why" | "meaning" | "check" | "show" | "answer" | "other";
+  /** One line: the exact doubt, e.g. "doesn't know which part to call u". */
+  doubt: string;
+  /** How the student's last message went. */
+  studentWas: "asking" | "correct" | "partly" | "wrong" | "unsure" | "claims-understood";
+  done: boolean;
+  /** Which Gemini model answered and how long it took. */
+  model?: string;
+  ms?: number;
+};
+
 /** One teaching turn from the brain. */
 export type TutorTurn = {
   beats: Beat[];
@@ -68,7 +81,10 @@ export type TutorTurn = {
   waitFor: "answer" | "line" | "none";
   /** The question asked, when waitFor = "answer". */
   question?: string;
+  insight?: TurnInsight;
 };
+
+export type BrainStatus = { state: "idle" } | { state: "thinking" } | { state: "error"; message: string };
 
 /* ───────────── Math engine (Part D) ───────────── */
 
@@ -85,6 +101,8 @@ export interface BrainApi {
   handleSpeech(said: StudentSaid): void;
   /** Subscribe to turns the brain wants played. Returns an unsubscribe function. */
   onTurn(listener: (turn: TutorTurn) => void): () => void;
+  /** "thinking" while waiting for Gemini; "error" if every model failed. */
+  onStatus(listener: (status: BrainStatus) => void): () => void;
   /** Start fresh on a new problem / document. */
   reset(): void;
 }
@@ -111,6 +129,10 @@ export interface PlayerApi {
   /** Stop speaking and drop queued beats (barge-in). */
   stop(): void;
   onStudentSaid(listener: (said: StudentSaid) => void): () => void;
+  /** Which beat of which turn is playing now (index null = finished). For captions. */
+  onBeat(listener: (turn: TutorTurn, index: number | null) => void): () => void;
+  /** Hand a final transcript from the mic / text box to the listeners. */
+  say(transcript: string): void;
 }
 
 /** Part D provides this: checks math. */

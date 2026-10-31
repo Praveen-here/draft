@@ -12,17 +12,29 @@ You decide **what happens next**: what to say, what to draw, when to ask, when t
 | `src/app/api/tutor/` | Server route that calls Gemini (keys stay on the server) |
 | `src/app/bench/` | Test bench page at `/bench`: feed fake events, watch the turns |
 
+## Try it (brain v1 works end to end)
+
+1. `npm run dev`, open http://localhost:3000/app (Chrome or Edge), **Open a PDF**.
+2. With the pen, **draw a loop around a problem**. It turns blue and appears under "You circled".
+3. **Ask** in the panel (type, or tap the mic). ∂raft talks, highlights, draws graphs and slides values, then asks you something.
+4. Answer it. Get it wrong on purpose and watch it explain differently.
+
+How it works: `brain.ts` sends the circled picture + question + conversation + student model to `/api/tutor`
+→ one Gemini call returns a structured turn (`schema.ts`) → `brain.ts` converts picture boxes to canvas positions
+→ the player speaks each beat and fires its visuals. Dev only: `/api/tutor?model=…` forces one model.
+
 ## Files
 
 | File | Does | Status |
 |---|---|---|
 | `index.ts` | Public entry. **Other parts may only import from here** | ✅ |
-| `brain.ts` | `createBrain({ canvas, math })`: implements `BrainApi`; runs the teaching loop | ⬜ stub |
-| `prompt.ts` | System prompt: the five rules, stages, beat format | 🟡 first draft |
-| `studentModel.ts` | `StudentModel` type, start value, save/load (localStorage) | 🟡 type + storage |
-| `tools.ts` | Tool declarations Gemini can call (`readInk`, `checkStep`, `plot`, …) | 🟡 names + descriptions |
-| `triggers.ts` | When to act without being asked (wrong line, long pause, …) | ⬜ stub |
-| `../../app/api/tutor/route.ts` | `POST /api/tutor`: Gemini Flash with tools, streams beats back | ⬜ returns 501 |
+| `brain.ts` | `createBrain({ canvas, math })`: conversation, student model, calls `/api/tutor`, converts turns | ✅ v1 |
+| `prompt.ts` | System prompt: the five rules, kinds of question, hint ladder, beats, visuals | ✅ v1 (keep tuning) |
+| `schema.ts` | The JSON shape Gemini must return + request/response types | ✅ |
+| `studentModel.ts` | `StudentModel` type, start value, save/load (localStorage) | ✅ |
+| `tools.ts` | Tool list (reference; v1 uses one structured call instead, D25) | 🟡 |
+| `triggers.ts` | When to act without being asked (wrong line, long pause, …) | ⬜ not wired yet |
+| `../../app/api/tutor/route.ts` | `POST /api/tutor`: one Gemini call, model fallback, answer-leak guard | ✅ |
 | `../../app/bench/page.tsx` | Test bench UI | 🟡 placeholder |
 
 ## What you give the others (`BrainApi`)

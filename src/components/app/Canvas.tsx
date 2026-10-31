@@ -12,6 +12,7 @@ import {
   type TLComponents,
 } from "tldraw";
 import "tldraw/tldraw.css";
+import { TutorSession } from "@/components/session/TutorSession";
 import { ChevronLeftIcon, FitIcon } from "./icons";
 import { loadPages, PAGE_WIDTH } from "./loadPages";
 import { PaperBackground } from "./PaperBackground";
@@ -107,6 +108,7 @@ export function Canvas({ source, onExit }: { source: DocSource; onExit: () => vo
       <Tldraw hideUi components={components} onMount={onMount}>
         <TopBar title={title} paper={paper} onPaper={setPaper} onExit={onExit} />
         <Toolbar />
+        <TutorSession />
       </Tldraw>
 
       <AnimatePresence>

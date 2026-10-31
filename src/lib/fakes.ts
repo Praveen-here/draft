@@ -53,7 +53,7 @@ export const sampleTurn: TutorTurn = {
     },
     {
       say: "Watch what happens when we differentiate x. It becomes just one.",
-      visuals: [{ type: "writeStep", latex: "x \\to 1", near: { bbox: sampleCircle.bbox } }],
+      visuals: [{ type: "writeStep", text: "x → 1", near: { bbox: sampleCircle.bbox } }],
     },
     {
       say: "So which one should be u?",
@@ -93,6 +93,7 @@ export function fakeBrain(): BrainApi {
       respond();
     },
     onTurn: turns.add,
+    onStatus: () => () => {},
     reset: () => log("brain", "reset"),
   };
 }
@@ -107,6 +108,8 @@ export function fakePlayer(): PlayerApi & { emit(said: StudentSaid): void } {
     },
     stop: () => log("player", "stop"),
     onStudentSaid: said.add,
+    onBeat: () => () => {},
+    say: (transcript) => said.emit({ transcript, duringTurn: false }),
     emit: said.emit,
   };
 }

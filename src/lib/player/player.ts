@@ -1,41 +1,61 @@
-import type { CanvasApi, PlayerApi, StudentSaid, VisualAction, VisualsApi } from "@/lib/contracts";
+import type { CanvasApi, PlayerApi, StudentSaid, TutorTurn, VisualAction, VisualsApi } from "@/lib/contracts";
 import { speak, type Speech } from "@/lib/voice";
 
 type Deps = { canvas: CanvasApi; visuals: VisualsApi };
 
-/** Plays turns beat by beat, firing each beat's visuals as its sentence starts. */
+const BEAT_GAP_MS = 180;
+
+/** Plays turns beat by beat, firing each beat's visuals as its sentence starts (D21). */
 export function createPlayer({ canvas, visuals }: Deps): PlayerApi {
-  const listeners = new Set<(said: StudentSaid) => void>();
+  const saidListeners = new Set<(said: StudentSaid) => void>();
+  const beatListeners = new Set<(turn: TutorTurn, index: number | null) => void>();
   let current: Speech | null = null;
-  let stopped = false;
+  let playing = 0; // id of the turn being played; 0 = none
 
   const fire = (action: VisualAction) => {
     if (action.type === "highlight" || action.type === "writeStep" || action.type === "mark") canvas.draw(action);
     else visuals.run(action);
   };
+  const beat = (turn: TutorTurn, index: number | null) => beatListeners.forEach((fn) => fn(turn, index));
 
+  let nextId = 0;
   return {
     async play(turn) {
-      stopped = false;
-      for (const beat of turn.beats) {
-        if (stopped) return;
-        current = speak(beat.say);
+      const id = ++nextId;
+      current?.cancel();
+      playing = id;
+      for (let i = 0; i < turn.beats.length; i++) {
+        if (playing !== id) return;
+        const b = turn.beats[i];
+        current = speak(b.say);
         await current.started;
-        beat.visuals.forEach(fire);
+        if (playing !== id) return;
+        beat(turn, i);
+        b.visuals.forEach(fire);
         await current.ended;
+        await new Promise((r) => setTimeout(r, BEAT_GAP_MS));
       }
+      if (playing !== id) return;
+      playing = 0;
       current = null;
-      // TODO(C): handle turn.waitFor (open the mic for "answer", wait for the pen for "line").
+      beat(turn, null);
     },
     stop() {
-      stopped = true;
+      playing = 0;
       current?.cancel();
       current = null;
     },
     onStudentSaid(listener) {
-      // TODO(C): call listeners from the mic/STT with { transcript, duringTurn: current !== null }.
-      listeners.add(listener);
-      return () => void listeners.delete(listener);
+      saidListeners.add(listener);
+      return () => void saidListeners.delete(listener);
+    },
+    onBeat(listener) {
+      beatListeners.add(listener);
+      return () => void beatListeners.delete(listener);
+    },
+    say(transcript) {
+      const said: StudentSaid = { transcript, duringTurn: playing !== 0 };
+      saidListeners.forEach((fn) => fn(said));
     },
   };
 }

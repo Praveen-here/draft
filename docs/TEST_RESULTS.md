@@ -4,6 +4,23 @@ Everything we've tested so far, with dates and what we learned.
 
 ---
 
+## 31 Oct 2026: Brain v1 end to end
+
+Headless Edge: open a worksheet PDF → circle a line → type a question → watch the tutor.
+
+| Test | Result |
+|---|---|
+| Circle around a line of text detected (long flat loop) | ✅ after allowing wide loops (first try rejected 14:1 loops) |
+| "What does a do?" on `y = a x²` | ✅ draws the graph beside the page, slides a 1 → 3 while talking, asks a question |
+| Wrong answer ("it gets wider") | ✅ marked "Your answer", re-explains on the **same** graph with numbers |
+| "How do I start?" on `∫ x eˣ dx` | ✅ highlights `x eˣ`, names the two kinds of function, asks which method; no answer given |
+| Reply time per turn (Flash-Lite) | ~2–4.5 s |
+| Console errors | none |
+
+Model availability (31 Oct): `gemini-3.8-flash`, `3.7-flash`, `flash-latest` often **503 busy**; `3.5-flash` 8–45 s; `3.5-flash-lite` ~2 s.
+
+---
+
 ## 31 Oct 2026: Gemini keys
 
 - `draft-dev` and `draft-demo` projects created in AI Studio; keys tested.
