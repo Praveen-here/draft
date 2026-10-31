@@ -175,7 +175,7 @@ type StudentSaid = { transcript: string; duringTurn: boolean };
 
 ## 8. The four parts (who builds what)
 
-Each part has **one owner** and its **own folder**, so we rarely touch the same files. Parts talk to each other only through the contracts in §7.
+Each part has **one owner** and its **own folder**, so we rarely touch the same files. Parts talk to each other only through the contracts in §7. Each part's folder has a `README.md` guide with its files, tasks and how to test alone.
 
 ### Part A: Canvas eyes and hands
 *The brain's eyes on the page and its pen.*
@@ -238,7 +238,7 @@ Each part has **one owner** and its **own folder**, so we rarely touch the same 
 
 | Step | Everyone | Notes |
 |---|---|---|
-| 1 | Agree on §7 contracts, commit them as `src/lib/contracts.ts` | 30 min, together. Changing it later needs a quick team OK |
+| 1 | ✅ §7 contracts are in `src/lib/contracts.ts`, fakes in `src/lib/fakes.ts`, wiring in `src/lib/session.ts` | 30 min, together. Changing it later needs a quick team OK |
 | 2 | Each part builds against **fakes** | B uses fake events + prints turns as text; C plays a hard-coded `TutorTurn`; A logs events to the console; D tests with a fixed list of steps |
 | 3 | **First join: B + C** | The brain talks: real Gemini → beats → spoken out loud |
 | 4 | **Second join: + A** | The brain sees circles/lines and draws on the canvas |

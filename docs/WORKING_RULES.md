@@ -13,7 +13,7 @@ Each of us owns one part (see [AGENT_BRAIN.md §8](AGENT_BRAIN.md)). **You only 
 | **C** Voice and player | `part-c/voice` | `src/lib/voice/` · `src/lib/player/` · `src/components/voice/` · `src/app/api/voice/` | to assign |
 | **D** Math and visuals | `part-d/math-visuals` | `src/lib/math/` · `src/components/visuals/` | to assign |
 | **Everyone** | any | `docs/` (notes about your part) · `package.json` + `package-lock.json` (adding a library) | |
-| **Lead only** | | everything else: `src/lib/contracts.ts`, landing page, `globals.css`, configs, `.github/`, `CLAUDE.md` | the lead |
+| **Lead only** | | everything else: `src/lib/contracts.ts`, `src/lib/fakes.ts`, `src/lib/session.ts`, landing page, `globals.css`, configs, `.github/`, `CLAUDE.md` | the lead |
 
 The same map lives in [`.github/parts.json`](../.github/parts.json), which the automatic check reads.
 
@@ -21,11 +21,23 @@ You can make extra branches for your part, as long as the name starts with your 
 
 ---
 
+## 1a. Shared files (lead-only)
+
+| File | What it is |
+|---|---|
+| `src/lib/contracts.ts` | The data shapes and the API each part provides (`CanvasApi`, `BrainApi`, `PlayerApi`, `MathApi`, `VisualsApi`) |
+| `src/lib/fakes.ts` | Fake version of every API + `sampleTurn` / `sampleCircle`, so you can build before the others are ready |
+| `src/lib/session.ts` | Wires the real parts together at the join steps |
+
+Each part's own guide is the `README.md` in its main folder: [Part A](../src/lib/canvas/README.md) · [Part B](../src/lib/agent/README.md) · [Part C](../src/lib/voice/README.md) · [Part D](../src/lib/math/README.md).
+
+---
+
 ## 2. The rules
 
 1. **Work only on your part's branch.** Never commit to `main` or to someone else's branch.
 2. **Change only your folders** (table above). Reading any file is fine; editing isn't.
-3. **Talk to other parts only through `src/lib/contracts.ts`.** Import its types; don't import another part's internal files. If you need a contract changed, ask the lead.
+3. **Talk to other parts only through `src/lib/contracts.ts`.** You may import from `@/lib/contracts`, `@/lib/fakes`, and another part's **public entry** (its `index.ts`: `@/lib/canvas`, `@/lib/agent`, `@/lib/voice`, `@/lib/player`, `@/lib/math`, `@/components/voice`, `@/components/visuals`). Never import another part's internal files. If you need a contract changed, ask the lead.
 4. **Need something changed in another part?** Don't change it yourself. Message its owner (or the lead) and say what you need. They make the change in their part.
 5. **Adding a library?** Tell the team first. Two people editing `package-lock.json` at once is the most common conflict.
 6. **Pull `main` into your branch often:** `git pull origin main`. Then open a pull request when a piece works.
