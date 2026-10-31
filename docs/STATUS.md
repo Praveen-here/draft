@@ -25,8 +25,8 @@ The protect-main ruleset on GitHub is **not active yet** (direct pushes to main 
 
 1. `npm run dev` → http://localhost:3000/app (Chrome or Edge) → **Open a PDF**. Test sheet: `samples/practice-sheet.pdf` (untracked; Q1–Q7 graphs/algebra/integration, Q8–Q11 worked answers with planted mistakes).
 2. Draw a loop around a problem (a whole line, or a single term) → it turns blue and a **lesson card** appears beside it with starter questions. The circled PDF text is read exactly (Part A).
-3. Type in the ask pill, tap a starter or tap the mic → in ~2–5 s the tutor speaks beat by beat; numbered **explain cards** for the key letters/numbers/rules appear under the lesson card, with matching numbered marks snapped onto the exact term in the PDF; Part D's interactive graphs (drag the point, sliders, tangent, area) join the column. A tall column scrolls on its own and returns to the lesson card for "Your turn".
-4. Answer → the lesson card shows only the current exchange; circling another problem swaps the whole column.
+3. Type in the ask pill, tap a starter bubble or tap the mic → in ~2–5 s the tutor answers in **message bubbles beside the circle** (D33): white bubbles for the tutor, blue for the student, one per spoken sentence, with numbered explain-card bubbles matching numbered marks snapped onto the exact term in the PDF. Part D's interactive graphs (drag the point, sliders, tangent, area) open in a **separate graph panel** (right side on wide screens, a sheet above the ask bar on tablets/phones).
+4. Answer → your blue bubble, then the tutor's reply; circling another problem replaces the whole thread. Checked at 1440×900, 820×1180 and a phone-size width.
 5. Handwriting is grouped into lines and read to LaTeX by `/app/read-ink` (Part A); the **Layers** panel (top right) lists the recognised equations. The brain doesn't act on them yet.
 6. Part D's standalone math studio: `npm run part-d:preview` → http://127.0.0.1:4173.
 
@@ -39,7 +39,7 @@ Canvas (tldraw)  --circle-->  session.ts  --> brain.handleCanvas (stores crop im
 AskBar / mic     --speech-->  session.ts  --> brain.handleSpeech --> POST /api/tutor --> Gemini (one structured call)
 brain.onTurn --> player.play: speaks each beat (browser TTS) and fires its visuals on speech start
 handwriting --1.2 s pause--> /app/read-ink (Gemini) --> "line" events (+ Layers panel); 8 s still --> "idle" events
-visuals: highlight / mark -> tldraw shapes; note / writeStep / plot -> lesson column beside the circle (TutorOverlay)
+visuals: highlight / mark -> tldraw shapes; note -> numbered mark on the term + a bubble; writeStep -> a bubble; plot / tangent / area -> graph panel (TutorOverlay)
 ```
 
 - **One Gemini call per turn** (D25), JSON schema in `src/lib/agent/schema.ts`: `kind, doubt, studentWas, stage, hintLevel, angle, misconception, done, beats[{say, visuals}], waitFor, question`. Boxes come back as `[ymin, xmin, ymax, xmax]` 0–1000 on the circled picture; `brain.ts` maps them to canvas coordinates.
@@ -53,9 +53,9 @@ visuals: highlight / mark -> tldraw shapes; note / writeStep / plot -> lesson co
 | Part | Folders | Key files |
 |---|---|---|
 | Lead-only | `src/lib/contracts.ts`, `fakes.ts`, `session.ts`, `src/lib/server/keys.ts`, `src/components/session/TutorSession.tsx` | contracts = the only way parts talk |
-| A Canvas | `src/lib/canvas/`, `src/components/app/`, `src/app/app/` | `canvasApi.ts` (strokes, circles, context, lines, lesson column), `context.ts` (PDF text, crops), `snapTerm.ts`, `equations.ts`/`lines.ts`/`readInk.ts` + `app/read-ink/route.ts` (handwriting), `TutorOverlay.tsx`, `NoteCard.tsx`, `EquationPanel.tsx` (Layers), `TutorInkShape.tsx`; guide: [PART_A_HANDOFF.md](PART_A_HANDOFF.md) |
+| A Canvas | `src/lib/canvas/`, `src/components/app/`, `src/app/app/` | `canvasApi.ts` (strokes, circles, context, lines, lesson column), `context.ts` (PDF text, crops), `snapTerm.ts`, `equations.ts`/`lines.ts`/`readInk.ts` + `app/read-ink/route.ts` (handwriting), `TutorOverlay.tsx` (bubble placement, graph panel, term marks), `noteTone.ts`, `EquationPanel.tsx` (Layers), `TutorInkShape.tsx`; guide: [PART_A_HANDOFF.md](PART_A_HANDOFF.md) |
 | B Brain | `src/lib/agent/`, `src/app/api/tutor/`, `src/app/bench/` | `brain.ts`, `prompt.ts`, `schema.ts`, `studentModel.ts`, `route.ts` |
-| C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/`, `src/app/api/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `LessonCard.tsx`, `AskBar.tsx`, `MicButton.tsx` |
+| C Voice | `src/lib/voice/`, `src/lib/player/`, `src/components/voice/`, `src/app/api/voice/` | `tts.ts`, `mic.ts`, `player.ts`, `LessonCard.tsx` (the bubble thread), `AskBar.tsx`, `MicButton.tsx` |
 | D Math/visuals | `src/lib/math/`, `src/components/visuals/` | Checker: `checkStep.ts`, `lineParse.ts`, `sampling.ts`. Visuals (Mafs + KaTeX): `Graph.tsx`, `visualsApi.ts`, `model.ts`, `animation.ts`, `FunctionExplorer.tsx`, `preview/`; graph parser `parse.ts`, `calculus.ts`; guide: [part-d/INTEGRATION.md](part-d/INTEGRATION.md) |
 
 Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main folder.
@@ -71,7 +71,7 @@ Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main
 - [ ] Gradium voice instead of browser voice; STT `delay_in_frames` ~12.
 - [ ] `/bench` test page is a placeholder.
 - [ ] Not verified on a real iPad: pen circle detection and the no-zoom fix.
-- [ ] Trade-off: with no room beside the page, the lesson column covers the right edge of the page; a tall column shrinks to 82%, then scrolls.
+- [ ] Trade-off: on a laptop the graph panel takes the page's right margin, so the bubbles move below the circle (over the next questions); on phones the thread gets little height while the graph sheet is open (fold the sheet, or the thread scrolls).
 - [ ] Explain-card marks snap to the PDF's text; terms that aren't printed (a formula, handwriting) still use Gemini's box, which can be a word off.
 - [ ] Gemini Flash models were often 503 / slow on 31 Oct; Flash-Lite is fast and is first in the chain.
 - [ ] Merge `integrate/all` into `main`, then teammates merge `main` into their `part-*` branches (`git merge origin/main`).

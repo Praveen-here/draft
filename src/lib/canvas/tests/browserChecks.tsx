@@ -100,13 +100,12 @@ export async function runCanvasChecks(editor: Editor, api: CanvasHandle, control
   api.draw({ type: "writeStep", near: target, text: "d/dx x = 1" });
   for (const kind of ["tick", "cross", "circle"] as const) api.draw({ type: "mark", target, kind });
   check(editor.getCurrentPageShapes().filter((shape) => shape.type === "tutor-ink").length === 4, "Missing tutor marks.");
-  check(api.visuals.get().items.some((item) => item.kind === "step"), "The written step is missing from the lesson column.");
-  pass("Highlight, tick, cross and circle render as tutor ink; the step joins the lesson column");
+  pass("Highlight, tick, cross and circle render as tutor ink; the step is a bubble in the lesson thread");
 
-  // Graphs live in the lesson column beside the circle (D30), never as shapes over the PDF.
+  // Graphs live in the graph panel (D33), never as shapes over the PDF.
   api.mountVisual("fixture", target, createElement("p", null, "Graph placeholder"));
   check(api.visuals.has("fixture"), "Visual was not mounted.");
-  check(api.visuals.get().column, "The lesson column has no position.");
+  check(api.visuals.get().anchor, "The lesson has nothing to float around.");
   api.mountVisual("fixture", target, createElement("p", null, "Replacement graph"));
   check(api.visuals.get().items.filter((item) => item.id === "fixture").length === 1, "Same visual ID created duplicates.");
   api.unmountVisual("fixture");

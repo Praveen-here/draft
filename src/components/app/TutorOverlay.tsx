@@ -1,158 +1,277 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useEditor, useQuickReactor } from "tldraw";
 import type { BBox } from "@/lib/contracts";
-import type { LessonColumn, LessonItem, VisualStore } from "@/lib/canvas";
-import { NOTE_TONE, NoteCard, StepCard } from "./NoteCard";
+import { LESSON_CARD_ID, type LessonItem, type SafeArea, type VisualStore } from "@/lib/canvas";
+import { NOTE_TONE } from "./noteTone";
 
-const spring = { type: "spring" as const, bounce: 0, duration: 0.45 };
-const GAP = 12;
-/** A column taller than the screen shrinks a little to fit, but never below this (text stays readable). */
-const MIN_FIT = 0.82;
+const spring = { type: "spring" as const, bounce: 0, duration: 0.4 };
+/** Space between the circle and its bubbles, in screen pixels. */
+const GAP = 14;
+/** Wide screens get a graph panel on the right; narrower ones a sheet above the ask bar. */
+const WIDE = "(min-width: 900px)";
 
 /**
- * The lesson column beside the circled problem: the lesson card, numbered explain cards matching numbered
- * marks on their terms, graphs and written steps. Lives in page space, so it pans and zooms with the page.
- * The lesson card and graphs take touches; explain cards and steps let the pen through.
+ * The tutor's things on top of the canvas, in three layers:
+ * - marks on the page (a numbered outline round each explained term), moving with the page;
+ * - the lesson thread as message bubbles floating beside the circle, placed in screen space so their size
+ *   follows the screen, not the zoom, and moved on every camera change so they stay with the circle;
+ * - graphs in their own panel, apart from the conversation.
  */
 export function TutorOverlay({ store }: { store: VisualStore }) {
   const editor = useEditor();
-  const { column, items, gen } = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const { anchor, items, gen, safe } = useSyncExternalStore(store.subscribe, store.get, store.get);
   const reduce = !!useReducedMotion();
-  const layer = useRef<HTMLDivElement>(null);
+  const wide = useMedia(WIDE);
 
-  // Follow the camera straight on the DOM, in the same frame as the canvas: no React render per scroll
-  // frame, so the cards stay glued to the page instead of trailing behind it.
+  const root = useRef<HTMLDivElement>(null);
+  const page = useRef<HTMLDivElement>(null);
+  const bubbles = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
+  const live = useRef({ anchor, safe });
+  live.current = { anchor, safe };
+
+  const lesson = items.find((i) => i.kind === "node" && i.id === LESSON_CARD_ID);
+  const graphs = items.filter((i): i is Extract<LessonItem, { kind: "node" }> => i.kind === "node" && i.id !== LESSON_CARD_ID);
+  // Explain cards are numbered 1, 2, 3... in the order they arrive; the thread numbers its note bubbles the same way.
+  const numbers = new Map<string, number>();
+  for (const i of items) if (i.kind === "note") numbers.set(i.id, numbers.size + 1);
+
+  /** Put the bubbles beside the circle, on whichever side has room, clear of the bars and the graph panel. */
+  const place = useCallback(() => {
+    const el = bubbles.current, list = scroller.current, box = root.current;
+    const { anchor: a, safe: s } = live.current;
+    if (!el || !list || !box || !a) return;
+    const screen = editor.getViewportScreenBounds();
+    const W = screen.w, H = screen.h;
+    const p1 = editor.pageToViewport({ x: a.x, y: a.y });
+    const p2 = editor.pageToViewport({ x: a.x + a.w, y: a.y + a.h });
+    const left = s.left, right = W - s.right, top = s.top, bottom = H - s.bottom;
+    const w = Math.max(220, Math.min(W < 640 ? W - 24 : Math.min(380, Math.max(280, W * 0.3)), right - left));
+    const content = (list.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+    const clampX = (x: number) => Math.min(Math.max(x, left), right - w);
+
+    // The graph panel is an obstacle: bubbles go round it, never under it.
+    const d = dock.current?.getBoundingClientRect(), r = box.getBoundingClientRect();
+    const P = d && d.width ? { l: d.left - r.left, r: d.right - r.left, t: d.top - r.top, b: d.bottom - r.top } : null;
+    const hits = (x: number, y: number, h: number) => !!P && x < P.r + 8 && x + w > P.l - 8 && y < P.b + 8 && y + h > P.t - 8;
+    let MIN = 160; // smallest useful height for the thread; relaxed below when space is tight
+
+    /** A spot at x, as near yWanted as fits between minY and maxY, stepping above or below the panel if needed. */
+    const fit = (side: string, x: number, yWanted: number, minY: number, maxY: number) => {
+      if (x < left - 0.5 || x + w > right + 0.5 || maxY - minY < Math.min(content, MIN)) return null;
+      const h = Math.min(content, maxY - minY);
+      const y = Math.min(Math.max(yWanted, minY), maxY - h);
+      if (!hits(x, y, h)) return { side, x, y, room: maxY - minY };
+      if (!P) return null;
+      if (maxY - (P.b + 12) >= Math.min(content, MIN)) { // below the panel
+        const yb = Math.max(P.b + 12, minY), hb = Math.min(content, maxY - yb);
+        if (!hits(x, yb, hb)) return { side, x, y: yb, room: maxY - yb };
+      }
+      if (P.t - 12 - minY >= Math.min(content, MIN)) { // above the panel
+        const ha = Math.min(content, P.t - 12 - minY), ya = Math.max(minY, Math.min(yWanted, P.t - 12 - ha));
+        if (!hits(x, ya, ha)) return { side, x, y: ya, room: P.t - 12 - minY };
+      }
+      return null;
+    };
+    const around = () =>
+      fit("right", p2.x + GAP, p1.y - 6, top, bottom) ??
+      fit("left", p1.x - GAP - w, p1.y - 6, top, bottom) ??
+      fit("below", clampX(p1.x), p2.y + GAP, Math.max(top, p2.y + GAP), bottom) ??
+      fit("above", clampX(p1.x), p1.y - GAP - content, top, Math.min(bottom, p1.y - GAP)) ??
+      (P ? fit("below-left", Math.max(left, Math.min(clampX(p1.x), P.l - 12 - w)), p2.y + GAP, Math.max(top, p2.y + GAP), bottom) : null);
+    // Never cover the circle itself: with little space, take a smaller spot around it (the thread scrolls),
+    // and only as a last resort sit just under it, over whatever is there.
+    const first = around();
+    MIN = 96;
+    const spot = first ?? around() ?? {
+      side: "fallback",
+      x: clampX(p1.x),
+      y: Math.min(Math.max(p2.y + GAP, top), bottom - 96),
+      room: Math.max(96, bottom - Math.max(p2.y + GAP, top)),
+    };
+
+    // Following the camera is instant; moving to another side (e.g. the graph panel opened) glides there.
+    const moved = el.dataset.side !== undefined && el.dataset.side !== spot.side && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.dataset.side = spot.side;
+    el.style.transition = moved ? "transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none";
+    el.style.width = `${w}px`;
+    el.style.transform = `translate(${Math.round(spot.x)}px, ${Math.round(spot.y)}px)`;
+    list.style.maxHeight = `${Math.max(120, spot.room)}px`;
+  }, [editor]);
+
+  // Follow the camera straight on the DOM, in the same frame as the canvas: no React render per scroll frame.
   useQuickReactor(
     "tutor overlay camera",
     () => {
       const { x, y, z } = editor.getCamera();
-      if (layer.current) layer.current.style.transform = `scale(${z}) translate(${x}px, ${y}px)`;
+      if (page.current) page.current.style.transform = `scale(${z}) translate(${x}px, ${y}px)`;
+      place();
     },
-    [editor],
+    [editor, place],
   );
+  useLayoutEffect(place, [place, anchor, safe, items, wide]);
+  useEffect(() => {
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [place]);
+
+  // The thread grows as the tutor talks: re-place it, and keep the newest bubble in view.
+  useLayoutEffect(() => {
+    const list = scroller.current;
+    const content = list?.firstElementChild;
+    if (!list || !content) return;
+    const ro = new ResizeObserver(() => {
+      place();
+      list.scrollTo({ top: list.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, [place, reduce, lesson]);
+
+  // The wheel scrolls the thread or the graph panel, not the page underneath.
+  useWheelStays(scroller);
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[200] overflow-hidden" aria-live="polite">
-      <div ref={layer} className="absolute left-0 top-0 origin-top-left">
+    <div ref={root} className="pointer-events-none absolute inset-0 z-[200] overflow-hidden" aria-live="polite">
+      <div ref={page} className="absolute left-0 top-0 origin-top-left">
+        <TermMarks items={items} numbers={numbers} reduce={reduce} />
+      </div>
+
+      <div ref={bubbles} className="absolute left-0 top-0" style={{ width: 0 }}>
         <AnimatePresence>
-          {column && (
+          {lesson && lesson.kind === "node" && (
             <motion.div
               key={gen}
               initial={{ opacity: 1 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.97, filter: "blur(4px)" }}
-              transition={{ duration: 0.25 }}
-              style={{ transformOrigin: `${column.x}px ${column.y}px` }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, filter: "blur(4px)" }}
+              transition={{ duration: 0.22 }}
+              style={{ transformOrigin: "top left" }}
             >
-              <Column column={column} items={items} reduce={reduce} />
+              <div
+                ref={scroller}
+                className="pointer-events-auto overflow-y-auto overscroll-contain [scrollbar-width:none]"
+                style={{ margin: -12, padding: 12, maskImage: FADE, WebkitMaskImage: FADE }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <div>{lesson.node}</div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      <GraphPanel panelRef={dock} graphs={graphs} wide={wide} safe={safe} reduce={reduce} onLayout={place} />
     </div>
   );
 }
 
-/** Room around the cards inside the scroll area, so their shadows aren't clipped. */
-const BLEED = 14;
+/** Fade the thread's top edge when older bubbles scroll under it. */
+const FADE = "linear-gradient(to bottom, transparent 0, #000 14px, #000 100%)";
 
-function Column({ column, items, reduce }: { column: LessonColumn; items: LessonItem[]; reduce: boolean }) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState(0);
+/* ───────────── Graph panel ───────────── */
 
-  // The content's height (layout value, in page units), so a tall column can shrink, slide and scroll.
-  useLayoutEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const measure = () => setHeight(el.offsetHeight);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
+/**
+ * Graphs live apart from the conversation: a glass panel on the right on wide screens, a sheet above the
+ * ask bar on narrow ones. It enters and leaves along the same edge, can be folded away, and opens again
+ * when a new graph arrives or a "View graph" bubble is tapped.
+ */
+function GraphPanel({ panelRef, graphs, wide, safe, reduce, onLayout }: {
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  graphs: Extract<LessonItem, { kind: "node" }>[];
+  wide: boolean;
+  safe: SafeArea;
+  reduce: boolean;
+  onLayout: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const body = useRef<HTMLDivElement>(null);
+  const count = graphs.length;
+  useEffect(() => { if (count) setOpen(true); }, [count]);
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener("draft:show-graphs", show);
+    return () => window.removeEventListener("draft:show-graphs", show);
   }, []);
+  useLayoutEffect(onLayout, [onLayout, open, count, wide]);
+  useWheelStays(body);
 
-  // As cards arrive the column grows: first shrink it a little, then slide it up so its bottom stays on
-  // screen (never above the top bar). If it still doesn't fit, it scrolls on its own.
-  const room = column.maxY - column.minY;
-  const scale = height > room ? Math.max(MIN_FIT, room / height) : 1;
-  const scrolls = height * scale > room + 1;
-  const top = Math.max(column.minY, Math.min(column.y, column.maxY - height * scale));
-
-  // A scrolling column keeps the newest card in view, and the wheel scrolls the column, not the page.
-  const count = items.length;
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (el && scrolls) el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
-  }, [count, scrolls, reduce]);
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !scrolls) return;
-    const keep = (e: WheelEvent) => e.stopPropagation();
-    el.addEventListener("wheel", keep, { passive: true });
-    return () => el.removeEventListener("wheel", keep);
-  }, [scrolls]);
-
-  // Explain cards that point at a term get numbers 1, 2, 3...; the same number marks the term on the page.
-  const numbers = new Map<string, number>();
-  for (const i of items) if (i.kind === "note" && i.anchor) numbers.set(i.id, numbers.size + 1);
-
-  const enter = reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.97 };
-  const fade = `linear-gradient(to bottom, transparent 0, #000 ${BLEED}px, #000 calc(100% - ${BLEED * 2}px), transparent 100%)`;
+  const from = wide ? { x: 40, y: 0 } : { x: 0, y: 40 };
+  const position: React.CSSProperties = wide
+    ? { top: safe.top, right: Math.max(12, safe.right), maxHeight: `calc(100% - ${safe.top + safe.bottom - 64}px)`, width: "clamp(300px, 28vw, 420px)" }
+    : { left: 12, right: 12, bottom: safe.bottom, maxHeight: "min(38vh, max(30vh, 100vh - 520px))" }; // shorter on phones
 
   return (
-    <>
-      <TermMarks items={items} numbers={numbers} reduce={reduce} />
-      <motion.div
-        className="absolute"
-        style={{ left: column.x, width: column.w, transformOrigin: "top left" }}
-        initial={false}
-        animate={{ top, scale }}
-        transition={reduce ? { duration: 0 } : spring}
-      >
-        <div
-          ref={scrollRef}
-          data-lesson-scroll=""
-          className={scrolls ? "pointer-events-auto overflow-y-auto overscroll-contain [scrollbar-width:none]" : undefined}
-          style={scrolls ? { maxHeight: room / scale + BLEED * 2, margin: -BLEED, padding: BLEED, maskImage: fade, WebkitMaskImage: fade } : undefined}
-          onPointerDown={scrolls ? (e) => e.stopPropagation() : undefined}
+    <AnimatePresence>
+      {count > 0 && (
+        <motion.aside
+          ref={panelRef}
+          aria-label="Graphs"
+          className="app-glass pointer-events-auto absolute flex flex-col overflow-hidden rounded-[24px]"
+          style={position}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, ...from }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, ...from }}
+          transition={spring}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-        <div ref={contentRef} className="flex flex-col" style={{ gap: GAP }}>
-        <AnimatePresence initial={true}>
-          {items.map((item) => (
-            <motion.div
-              key={item.id}
-              initial={enter}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: reduce ? 1 : 0.97 }}
-              transition={spring}
-              style={{ transformOrigin: "top left" }}
-              // The lesson card and graphs take touches (buttons, dragging a point); cards let the pen through.
-              className={item.kind === "node" ? "pointer-events-auto" : undefined}
-              onPointerDown={item.kind === "node" ? (e) => e.stopPropagation() : undefined}
-            >
-              {item.kind === "note" ? (
-                <NoteCard note={item.note} number={numbers.get(item.id)} />
-              ) : item.kind === "step" ? (
-                <StepCard text={item.text} reduce={reduce} />
-              ) : (
-                item.node
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        </div>
-        </div>
-      </motion.div>
-    </>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="app-press flex shrink-0 items-center gap-2 px-4 py-3 text-left"
+          >
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-ink" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 3v18h18" /><path d="M6 16c3-8 6-8 9-3s4 2 6-4" />
+            </svg>
+            <span className="text-[0.92rem] font-semibold tracking-[-0.01em] text-text">{count === 1 ? "Graph" : `Graphs · ${count}`}</span>
+            <svg viewBox="0 0 24 24" className={`ml-auto h-4 w-4 text-subtle transition-transform duration-200 ${open ? "" : "rotate-180"}`} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
+              <path d={wide ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
+            </svg>
+          </button>
+          <AnimatePresence initial={false}>
+            {open && (
+              <motion.div
+                key="graphs"
+                ref={body}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [scrollbar-width:thin]"
+                initial={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                transition={spring}
+              >
+                <div className="flex flex-col gap-3">
+                  <AnimatePresence initial={true}>
+                    {graphs.map((g) => (
+                      <motion.div
+                        key={g.id}
+                        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={spring}
+                      >
+                        {g.node as ReactNode}
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.aside>
+      )}
+    </AnimatePresence>
   );
 }
 
+/* ───────────── Marks on the page ───────────── */
+
 /**
  * On the page: a soft tinted outline around each explained term, with a numbered badge on its corner.
- * The card with the same number explains it, so nothing has to cross the page to connect them.
+ * The note bubble with the same number explains it, so nothing has to cross the page to connect them.
  */
 function TermMarks({ items, numbers, reduce }: { items: LessonItem[]; numbers: Map<string, number>; reduce: boolean }) {
   const notes = items.filter((i): i is Extract<LessonItem, { kind: "note" }> => i.kind === "note" && !!i.anchor);
@@ -200,3 +319,28 @@ function TermMarks({ items, numbers, reduce }: { items: LessonItem[]; numbers: M
 }
 
 const pad = (b: BBox, p: number): BBox => ({ x: b.x - p, y: b.y - p, w: b.w + p * 2, h: b.h + p * 2 });
+
+/* ───────────── Small helpers ───────────── */
+
+function useMedia(query: string): boolean {
+  return useSyncExternalStore(
+    (fn) => {
+      const m = matchMedia(query);
+      m.addEventListener("change", fn);
+      return () => m.removeEventListener("change", fn);
+    },
+    () => matchMedia(query).matches,
+    () => true,
+  );
+}
+
+/** Wheel events inside this element scroll it, instead of reaching the canvas (which would pan the page). */
+function useWheelStays(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const keep = (e: WheelEvent) => e.stopPropagation();
+    el.addEventListener("wheel", keep, { passive: true });
+    return () => el.removeEventListener("wheel", keep);
+  });
+}

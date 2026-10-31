@@ -1,6 +1,6 @@
-import { Box, type Editor, type TLShape, type TLShapeId } from "tldraw";
+import { type Editor, type TLShape, type TLShapeId } from "tldraw";
 import type { BBox, CanvasApi, CanvasEvent, CircleContext } from "@/lib/contracts";
-import { areaContext, circleContext, documentPages, enclosesContent, shapeBox, strokePoints, studentInk, targetBox } from "./context";
+import { areaContext, circleContext, enclosesContent, shapeBox, strokePoints, studentInk, targetBox } from "./context";
 import { looksLikeCircle } from "./circleDetect";
 import { overlap, padded, union, validBox } from "./geometry";
 import type { InkLine } from "./lines";
@@ -8,16 +8,7 @@ import { canvasLines, finishEquationMotion, inkFingerprint, snapshotEquations, t
 import { readInk, requestInk, type InkRecognizer } from "./readInk";
 import { snapToTerm } from "./snapTerm";
 import { clearTutorInk, drawTutorInk } from "./tutorInk";
-import { createVisualStore, type LessonColumn, type VisualStore } from "./visualStore";
-
-/** Width of the lesson column (lesson card, explain cards, graphs, steps) beside the circle, in page units. */
-export const VISUAL_W = 380;
-export const VISUAL_H = 270;
-/** Room the column needs on screen to be placed beside the circle rather than below it. */
-const COLUMN_MIN_H = 220;
-
-/** Screen space covered by floating UI (bars, ask pill); the lesson column is placed outside it. */
-export type SafeArea = { top: number; right: number; bottom: number; left: number };
+import { createVisualStore, type SafeArea, type VisualStore } from "./visualStore";
 
 export type CanvasOptions = {
   recogniseInk?: InkRecognizer;
@@ -28,7 +19,7 @@ export type CanvasOptions = {
 export type CanvasEquation = InkLine & { latex: string | null };
 export type CanvasHandle = CanvasApi & {
   getEquations(): CanvasEquation[];
-  /** The lesson column beside the circled problem, read by <TutorOverlay>. */
+  /** The current lesson (what was circled, the thread, graphs, term marks), read by <TutorOverlay>. */
   visuals: VisualStore;
   setSafeArea(area: SafeArea): void;
   dispose(): void;
@@ -38,8 +29,6 @@ export type CanvasHandle = CanvasApi & {
 export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): CanvasHandle {
   const listeners = new Set<(event: CanvasEvent) => void>();
   const visuals = createVisualStore();
-  let safe: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
-  let stepCount = 0;
   let latestCircle: CircleContext | null = null;
   let circleId: TLShapeId | null = null;
   let selectedIds: TLShapeId[] = [];
@@ -302,50 +291,21 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
   editor.on("event", finishMotion);
   offs.push(() => { editor.off("event", finishMotion); });
 
-  /** The part of the canvas the student can see right now (not under the bars), in page units. */
-  function visibleArea(): Box {
-    const screen = editor.getViewportScreenBounds();
-    const { x: cx, y: cy, z } = editor.getCamera();
-    return new Box(safe.left / z - cx, safe.top / z - cy, (screen.w - safe.left - safe.right) / z, (screen.h - safe.top - safe.bottom) / z);
-  }
-
   /**
-   * Pick a spot for the lesson column that is already on screen and doesn't cover the circle.
-   * The canvas never moves: the student keeps looking at what they marked (no zoom, no pan).
+   * The lesson floats around what was circled. With nothing circled (a question asked straight away), it
+   * floats around the middle of what's on screen. The overlay places the bubbles on screen from this.
    */
-  function anchorColumn(): LessonColumn {
-    const vis = visibleArea();
-    const c = latestCircle ? new Box(latestCircle.bbox.x, latestCircle.bbox.y, latestCircle.bbox.w, latestCircle.bbox.h) : vis;
-    const pageRight = Math.max(0, ...documentPages(editor).map((page) => shapeBox(editor, page))
-      .filter((page) => overlap(page, c) > 0).map((page) => page.x + page.w));
-    const w = VISUAL_W;
-    const h = Math.min(COLUMN_MIN_H, vis.h - 32);
-    const gap = 16;
-    const fits = (x: number, y: number) => x >= vis.x && y >= vis.y && x + w <= vis.maxX && y + h <= vis.maxY;
-    const clampX = (x: number) => Math.min(Math.max(x, vis.x + gap), vis.maxX - w - gap);
-    const top = Math.max(c.y, vis.y + gap); // level with the circle, but never under the top bar
-    const candidates = [
-      { x: Math.max(c.maxX, pageRight) + 40, y: top }, // beside the page, level with the circle
-      { x: c.maxX + 24, y: top }, // right of the circle
-      { x: c.x - w - 24, y: top }, // left of the circle
-      { x: clampX(c.x), y: c.maxY + gap }, // below the circle
-    ];
-    const spot = candidates.find((p) => fits(p.x, p.y)) ?? { x: vis.maxX - w - gap, y: vis.y + gap };
-    return { ...spot, w, minY: vis.y + gap, maxY: vis.maxY - gap };
-  }
-
-  const ensureColumn = () => {
-    const current = visuals.get().column;
-    if (current) return current;
-    const column = anchorColumn();
-    visuals.setColumn(column);
-    return column;
+  const ensureAnchor = () => {
+    if (visuals.get().anchor) return;
+    if (latestCircle) { visuals.setAnchor(latestCircle.bbox); return; }
+    const view = editor.getViewportPageBounds();
+    visuals.setAnchor({ x: view.x + view.w / 2 - 1, y: view.y + view.h / 3, w: 2, h: 2 });
   };
 
   const api: CanvasHandle = {
     visuals,
     setSafeArea(area) {
-      safe = area;
+      visuals.setSafe(area);
     },
     getEquations: () => lines().map((line) => ({ ...line, latex: recognised.get(fingerprint(line)) ?? null })),
     onEvent(listener) {
@@ -358,9 +318,10 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
     draw(action) {
       if (disposed) return;
       try {
-        // Explain cards and written steps go in the lesson column; highlights and marks go on the page.
+        // Explain cards are bubbles in the lesson thread; here they only leave a numbered mark on their term.
+        // Written steps are bubbles too (the thread draws them), so nothing goes on the page for them.
         if (action.type === "note") {
-          ensureColumn();
+          ensureAnchor();
           const { type: _type, ...note } = action;
           let anchor: BBox | null = null;
           try { anchor = note.target ? targetBox(editor, note.target) : null; } catch { anchor = null; }
@@ -369,11 +330,7 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
           visuals.set({ id: `note:${note.id}`, kind: "note", note, anchor });
           return;
         }
-        if (action.type === "writeStep") {
-          ensureColumn();
-          visuals.set({ id: `step:${++stepCount}`, kind: "step", text: action.text });
-          return;
-        }
+        if (action.type === "writeStep") return;
         drawTutorInk(editor, action);
       } catch (error) { report(error); }
     },
@@ -385,8 +342,8 @@ export function createCanvasApi(editor: Editor, options: CanvasOptions = {}): Ca
     mountVisual(id, _near, node) {
       if (disposed) return;
       if (!id.trim() || id.length > 128) { report(new Error("The visual has an invalid ID.")); return; }
-      // Graphs and the lesson card join the lesson column; the same id replaces in place.
-      ensureColumn();
+      // The lesson thread floats by the circle; graphs go in the graph panel. The same id replaces in place.
+      ensureAnchor();
       visuals.set({ id, kind: "node", node });
     },
     unmountVisual(id) {
