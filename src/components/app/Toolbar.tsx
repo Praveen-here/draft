@@ -80,7 +80,7 @@ export function Toolbar() {
               type="button"
               aria-label={c.label}
               aria-pressed={color === c.id}
-              onPointerDown={() => setColor(c.id)}
+              onClick={() => setColor(c.id)}
               className="app-press flex h-11 w-9 items-center justify-center rounded-xl"
             >
               <span
@@ -137,7 +137,7 @@ function Divider({ className = "" }: { className?: string }) {
   return <span aria-hidden className={`mx-1 h-6 w-px bg-black/10 ${className}`} />;
 }
 
-/** Reacts on pointer-down (not release), with a sliding highlight for the active item. */
+/** Press feedback is immediate; native click also supports keyboard activation. */
 function ToolButton({
   children,
   label,
@@ -162,10 +162,7 @@ function ToolButton({
       aria-label={label}
       aria-pressed={layoutGroup ? active : undefined}
       disabled={disabled}
-      onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        onPress();
-      }}
+      onClick={onPress}
       className={`app-press relative flex h-11 items-center justify-center rounded-xl transition-colors duration-200 disabled:opacity-30 ${
         narrow ? "w-9" : "w-11"
       } ${active ? "text-ink" : "text-[#3a3a3c]"}`}

@@ -66,6 +66,22 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 ---
 
+## Part A implementation notes — 2026-10-31
+
+- **Decided for this work:** the Part A assignee confirmed the updated canvas scope,
+  including student handwriting and handwriting-to-LaTeX, replacing their earlier
+  handwriting scope cut.
+- **Decided for local testing:** use clearly labelled temporary stubs while the other
+  parts are being built. The normal app uses Part A's server-side Gemini handwriting reader;
+  recognition failures and unconnected voice report their status. Shared contracts are unchanged.
+- **Part A reader:** `/app/read-ink` uses `gemini-3.5-flash-lite` with minimal thinking,
+  existing dev/demo key names, bounded PNG requests and no automatic retries or paid fallback.
+  Live desktop/recognition checks passed. The user confirmed development billing is disabled.
+- **Part A demo device:** target laptops with trackpads. Tablet/stylus calibration is optional
+  if hardware becomes available; it is not a requirement for the local demo.
+- **Open integration handoff:** connect voice, session wiring and real graphs.
+  Details: [PART_A_HANDOFF.md](PART_A_HANDOFF.md).
+
 ## Security incidents
 
 | Date | What | Action |

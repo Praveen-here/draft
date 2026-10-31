@@ -8,6 +8,18 @@ const base = {
   strokeLinejoin: "round" as const,
 };
 
+export function LayersIcon({ className }: IconProps) {
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden {...base}>
+    <path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" />
+  </svg>;
+}
+
+export function FolderIcon({ className }: IconProps) {
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden {...base}>
+    <path d="M3 7V5.5A1.5 1.5 0 0 1 4.5 4H9l2 3h8.5A1.5 1.5 0 0 1 21 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V7Z" />
+  </svg>;
+}
+
 export function SelectIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden {...base}>
