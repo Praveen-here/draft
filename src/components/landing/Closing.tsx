@@ -1,3 +1,4 @@
+import { GoogleButton } from "./GoogleButton";
 import { ArrowIcon } from "./icons";
 import { Logo } from "./Logo";
 import { Reveal } from "./motion";
@@ -15,10 +16,11 @@ export function Closing() {
               <br />
               <span className="text-muted">not twenty.</span>
             </h2>
-            <div className="mt-10 flex justify-center">
+            <div className="mt-10 flex flex-wrap justify-center gap-3">
+              <GoogleButton />
               <a
                 href="#demo"
-                className="pressable btn-primary inline-flex items-center gap-2 rounded-full px-7 py-4 text-[1rem] font-semibold"
+                className="pressable btn-quiet inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[0.98rem] font-semibold"
               >
                 Watch it teach
                 <ArrowIcon className="h-4 w-4" />

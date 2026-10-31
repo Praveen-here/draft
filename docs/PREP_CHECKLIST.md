@@ -17,6 +17,7 @@ Goal: arrive with everything around the code ready, so we start building feature
 - [ ] Each teammate: own Gemini / Gradium / Groq dev accounts ([SETUP_GUIDE.md](SETUP_GUIDE.md))
 - [ ] Shared team email + Bitwarden organisation; all keys stored with clear labels
 - [ ] Vercel account linked to GitHub
+- [ ] **tldraw license key** (tldraw.dev) → `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` in Vercel. Without it the canvas disappears on any HTTPS deploy
 - [ ] GitHub org/repo created (empty), all 4 added
 - [ ] Record real rate limits (Gemini, Groq) in [SERVICES_AND_KEYS.md](SERVICES_AND_KEYS.md)
 - [ ] Decide: billing on the Gemini demo project? (If yes, set a budget alert first)

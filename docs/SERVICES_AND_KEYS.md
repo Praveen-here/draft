@@ -93,7 +93,16 @@ Plus one switch: `APP_ENV=dev` (laptops) / `APP_ENV=demo` (Vercel production, de
 
 ---
 
-## 6. Other free tools (no keys needed)
+## 6. tldraw (canvas) license
+
+- **localhost / `npm run dev`:** works with no key (shows a small "Get a license for production" note).
+- **Any HTTPS production build** (Vercel, `npm run build && npm start` behind HTTPS): **without a key the canvas hides itself after 5 seconds.** We checked this in tldraw 5.6's source (`LicenseProvider`, `LICENSE_TIMEOUT = 5000`).
+- **Fix:** get a key from https://tldraw.dev (check their hobby/trial options) and set `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` in Vercel env vars and `.env.local`. tldraw reads it automatically.
+- **Demo-day fallback:** running `npm run dev` on a laptop (also through a Cloudflare Tunnel) counts as development, so it works without a key.
+
+---
+
+## 7. Other free tools (no keys needed)
 
 | Tool | Use | Note |
 |---|---|---|
@@ -113,7 +122,7 @@ Plus one switch: `APP_ENV=dev` (laptops) / `APP_ENV=demo` (Vercel production, de
 
 ---
 
-## 7. Budget
+## 8. Budget
 
 | Item | Expected |
 |---|---|

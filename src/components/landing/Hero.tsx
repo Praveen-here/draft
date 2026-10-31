@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { ArrowIcon } from "./icons";
+import { GoogleButton } from "./GoogleButton";
 import { HeroCanvas } from "./HeroCanvas";
 import { spring } from "./motion";
 
@@ -37,18 +37,12 @@ export function Hero() {
           </motion.p>
 
           <motion.div {...enter(0.18)} className="mt-9 flex flex-wrap items-center gap-3">
+            <GoogleButton />
             <a
               href="#how"
-              className="pressable btn-primary inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[0.98rem] font-semibold"
-            >
-              See how it works
-              <ArrowIcon className="h-4 w-4" />
-            </a>
-            <a
-              href="#why"
               className="pressable btn-quiet inline-flex items-center rounded-full px-6 py-3.5 text-[0.98rem] font-semibold"
             >
-              Why hints, not answers
+              See how it works
             </a>
           </motion.div>
 

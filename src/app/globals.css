@@ -166,6 +166,41 @@ body {
   border-radius: 10px;
 }
 
+/* ---------- App: floating chrome over the canvas ---------- */
+/* One translucent layer over the paper, never glass on glass. Bigger shadow = thicker material. */
+.app-glass {
+  background: rgba(255, 255, 255, 0.78);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    0 2px 6px rgba(16, 24, 40, 0.06),
+    0 12px 32px -8px rgba(16, 24, 40, 0.18);
+}
+
+.app-press {
+  transition: transform 100ms ease-out;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.app-press:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+/* tldraw: let our paper show through and keep the canvas calm */
+.draft-canvas .tl-background {
+  background: transparent;
+}
+.draft-canvas .tl-container {
+  --color-background: transparent;
+}
+/* PDF pages sit on the desk like real sheets of paper */
+.draft-canvas [data-shape-type="image"] {
+  filter: drop-shadow(0 1px 1px rgba(16, 24, 40, 0.06)) drop-shadow(0 8px 24px rgba(16, 24, 40, 0.1));
+}
+
 /* ---------- Accessibility signals ---------- */
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -174,12 +209,18 @@ body {
   .pressable {
     transition: background-color 150ms ease;
   }
-  .pressable:active {
+  .pressable:active,
+  .app-press:active:not(:disabled) {
     transform: none;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  .app-glass {
+    background: #fff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
   .glass {
     background: #fff;
     -webkit-backdrop-filter: none;

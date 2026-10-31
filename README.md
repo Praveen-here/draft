@@ -27,6 +27,7 @@ A hackathon project · Education track
 - ✅ "Is this for me?" gate tested on Groq: 14/14 correct, ~270 ms
 - 🟡 Approach and architecture: **draft, not final**
 - ✅ Landing page (Next.js 16 + Tailwind 4 + Motion): `src/app/page.tsx`, components in `src/components/landing/`
+- ✅ App shell at `/app`: start screen (blank document or open a PDF) and the canvas (tldraw + pdf.js), in `src/components/app/`
 - ⬜ App features: not started (check the hackathon rules on prior work)
 
 ## Run it
