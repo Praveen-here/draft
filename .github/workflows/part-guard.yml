@@ -1,0 +1,30 @@
+name: part-guard
+
+# Checks that a pull request only changes its own part's folders.
+# Rules: docs/WORKING_RULES.md
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  part-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check changed files
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          OWNER: ${{ github.repository_owner }}
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: node .github/scripts/part-guard.mjs

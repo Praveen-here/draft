@@ -16,6 +16,7 @@ What we decided, why, and what's still open. Newest first. Add a line whenever s
 
 | # | Decision | Status | Why |
 |---|---|---|---|
+| D24 | **Folder ownership is enforced**: branches `part-a/…` to `part-d/…`, each may only change its folders (`.github/parts.json`). A `part-guard` GitHub check fails pull requests that touch other parts; only the lead's `cross-part` label overrides; CODEOWNERS makes the lead review every merge; AI assistants follow the same rules via `CLAUDE.md`/`AGENTS.md` | ✅ | Asked by the lead so nobody changes another part's code. See [WORKING_RULES.md](WORKING_RULES.md) |
 | D23 | Work split into **4 parts**: A Canvas eyes and hands, B Agent Brain (lead), C Voice and beat player, D Math engine and visuals (+ demo). Parts talk only through shared contracts in `src/lib/contracts.ts` | ✅ | Each owner has their own folder, so few merge conflicts; the brain can be built and tested with fakes before the others are ready. See [AGENT_BRAIN.md §8](AGENT_BRAIN.md) |
 | D22 | The brain is **proactive**: it flags wrong lines, offers a nudge after a long pause, draws visuals and asks questions without being asked | ✅ | A tutor that only answers is a chatbot; acting on its own is what makes it an agent |
 | D21 | **Talk while drawing**: the brain sends "beats" (one sentence + the visuals that happen while it's said); graphs and live value changes are **must-have** | ✅ | Explaining with pictures in sync with speech is our main demo moment. Closes Q4 |

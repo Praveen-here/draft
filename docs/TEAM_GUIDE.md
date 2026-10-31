@@ -124,6 +124,8 @@ Step-by-step: [SETUP_GUIDE.md](SETUP_GUIDE.md).
 
 Owners for A, C and D are still to be assigned. Each part has its own folder and talks to the others only through shared "contracts" (agreed data shapes), so we can build in parallel. Details and build order: [AGENT_BRAIN.md §8–9](AGENT_BRAIN.md).
 
+**You only change files in your own part's folders.** An automatic check on GitHub blocks pull requests that touch other parts. Your branch, your folders and what to do when you need a change elsewhere: [WORKING_RULES.md](WORKING_RULES.md).
+
 ---
 
 ## 8. Things that could break (and our backup)
