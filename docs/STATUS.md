@@ -57,7 +57,8 @@ Folder map: `.github/parts.json`. Each part's guide: the `README.md` in its main
 ## Known gaps and next steps
 
 - [ ] Proactive triggers not wired (`src/lib/agent/triggers.ts`): flag a wrong line, nudge after ~8–10 s idle, quiet ✓ on a right line.
-- [ ] Math engine (`src/lib/math`) returns "unsure"; brain doesn't check steps yet.
+- [x] Math engine works on `part-d/math-visuals` (D28, D29; [TEST_RESULTS.md](TEST_RESULTS.md)). Run `npx jiti src/lib/math/check.test.ts`.
+- [ ] Brain doesn't use the engine yet (Part B): check typed answers, flag wrong lines, `done` only when the engine agrees.
 - [ ] `readInk` / handwriting lines are stubs; PDF text isn't extracted into `pdfText` yet.
 - [ ] Gradium voice instead of browser voice; STT `delay_in_frames` ~12.
 - [ ] `/bench` test page is a placeholder.
