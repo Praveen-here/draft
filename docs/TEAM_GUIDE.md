@@ -14,7 +14,12 @@ A math tutor app for an **iPad or Android tablet**.
 3. When stuck, they **circle** the part they don't understand, with the same pen. There's no circle button; the app notices the circle by itself.
 4. They **tap the mic button** and **ask out loud**: "why is there a minus here?" Tapping it again stops the app listening.
 5. ∂raft **looks at what was circled, listens, and explains that exact step out loud**, like a friend sitting next to them.
-6. It gives **hints, not the full answer**, then lets the student try the next line and **checks it with a math engine**.
+6. It **talks while it draws**: graphs, highlights and values that change on screen as it speaks.
+7. It asks **"Did you get it?"** and a quick check question, then **changes its explanation** based on the answer.
+8. It gives **hints, not the full answer**, then lets the student try the next line and **checks it with a math engine**.
+9. It **keeps going until the student can do it** (or explain it back), and it **steps in by itself** when it spots a mistake.
+
+**Our core feature is the tutor's brain** (the "Agent Brain"): it decides what to say, what to draw, when to ask and when to stay quiet. Full details: [AGENT_BRAIN.md](AGENT_BRAIN.md).
 
 **Our main point:** other apps (Photomath, ChatGPT) give the answer. ∂raft helps you *understand*, and you can point at the exact step you're stuck on, with no screenshots or typing.
 
@@ -108,14 +113,16 @@ Step-by-step: [SETUP_GUIDE.md](SETUP_GUIDE.md).
 
 ---
 
-## 7. Who does what (proposed, not final)
+## 7. Who does what (4 parts, D23)
 
-| Person | Area |
-|---|---|
-| A | **Canvas**: PDF layer, pen, automatic circle detection, cropping, drawing tutor ink |
-| B | **Agent**: Gemini planner, tools, hint ladder, memory |
-| C | **Voice**: mic on/off button, Gradium streaming, interruptions |
-| D | **Math + demo**: math checker, graphs, math display, demo script and pitch |
+| Part | Area | In one line |
+|---|---|---|
+| A | **Canvas eyes and hands** | Detects circles and lines, reads handwriting, draws the tutor's highlights, ticks and steps |
+| B | **Agent Brain** (core; the lead) | The teaching loop: what to say, draw and ask next; adapts until the student gets it |
+| C | **Voice and player** | Mic button, speech in and out, interruptions, and **speaking + drawing at the same moment** |
+| D | **Math and visuals** | Checks steps, draws graphs with values that change live, plus the demo script |
+
+Owners for A, C and D are still to be assigned. Each part has its own folder and talks to the others only through shared "contracts" (agreed data shapes), so we can build in parallel. Details and build order: [AGENT_BRAIN.md §8–9](AGENT_BRAIN.md).
 
 ---
 

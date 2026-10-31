@@ -5,17 +5,22 @@
 
 ---
 
+> **Core feature: the Agent Brain.** The tutor's brain is our main work: hints and single steps (never the full solution), talking while it draws, asking "did you get it?" and adapting, acting on its own, and staying in the loop until the student can do it. Full spec and the 4-part work split: **[AGENT_BRAIN.md](AGENT_BRAIN.md)** (D19 to D23).
+
 ## 1. Product scope
 
 ### Must have (the demo)
-1. PDF shown on a locked layer, with the pen on top. **No circle button**: circles and writing are detected automatically (see §3a)
-2. Circle → crop + PDF text extraction → Gemini explains
-3. Streaming voice in and out, controlled by **one mic on/off button**, with **interruption** (barge-in)
-4. **Hint ladder** (nudge → hint → worked step) + math-engine step check + green ✓
+1. **The Agent Brain** teaching loop: understand → diagnose → explain → check → practice → verify, until solved or explained back ([AGENT_BRAIN.md](AGENT_BRAIN.md))
+2. **Talk while drawing**: spoken "beats" in sync with highlights, tutor-written steps, **graphs and live value changes** (D21)
+3. **Proactive**: flags wrong lines, nudges after a long pause, draws visuals without being asked (D22)
+4. PDF shown on a locked layer, with the pen on top. **No circle button**: circles and writing are detected automatically (see §3a)
+5. Circle → crop + PDF text extraction → brain explains
+6. Streaming voice in and out, controlled by **one mic on/off button**, with **interruption** (barge-in)
+7. **Hint ladder** (nudge → hint → worked step) + math-engine step check + green ✓
 
 ### Nice to have
-- Graph tool (function-plot)
-- Auto-trigger after a 3-second writing pause
+- Extra ready-made visuals beyond graphs (number line, table of values)
+- Memory across problems ("the minus sign again")
 - Animated "handwriting" font for tutor-written steps
 
 ### Cut / not now
@@ -82,6 +87,8 @@ There is exactly **one control**: the **mic button**. Everything else happens by
 ---
 
 ## 4. The agent loop
+
+> **Superseded in detail by [AGENT_BRAIN.md](AGENT_BRAIN.md)** (teaching stages, beats, tools, student model). The sketch below is the original outline.
 
 ```
 trigger (question while mic is on | 3 s writing pause)
@@ -172,6 +179,7 @@ type Utterance = {
 };
 
 // agent → canvas / voice
+// Replaced by TutorTurn / Beat / VisualAction in AGENT_BRAIN.md §7. Kept for reference.
 type TutorAction = {
   say: string;
   hintLevel: 1 | 2 | 3;
@@ -215,7 +223,8 @@ export const keys = {
 
 ## 12. Open questions
 
-- [ ] Final scope cut: is the graph tool in the demo?
+- [x] ~~Final scope cut: is the graph tool in the demo?~~ Yes, must-have (D21)
+- [ ] Agent Brain questions: see [AGENT_BRAIN.md §11](AGENT_BRAIN.md)
 - [ ] Gradium WebSocket pipeline vs. Gemini Live API as primary voice
 - [ ] Jev vs. Groq for the gate (currently Groq). Now lower priority: the mic button replaces most of the gate's job
 - [ ] Keep the Groq gate while the mic is on (to skip thinking aloud), or rules only?
@@ -224,5 +233,5 @@ export const keys = {
 - [ ] Include a hidden "full solve" or not
 - [ ] Best `delay_in_frames` value (8 / 12 / 16), to test on the tablet
 - [ ] Tutor voice ID (choose in Gradium Studio)
-- [ ] Final owner per area
+- [ ] Assign owners for Parts A, C, D (the lead owns B; see D23)
 - [ ] Check the hackathon's rules on prior work (what can be built in advance)
