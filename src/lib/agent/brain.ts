@@ -95,6 +95,7 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
     const body: TutorRequest = {
       image: circle?.cropImage || undefined,
       pdfText: circle?.pdfText || undefined,
+      handwriting: circle?.recentLines.length ? circle.recentLines.slice(0, 6) : undefined,
       transcript: input.transcript,
       event: input.event,
       answer: input.answer,
@@ -125,7 +126,7 @@ export function createBrain({ canvas, math }: Deps): BrainApi {
       if (id !== request) return; // the student asked something newer
       if ("error" in data) throw new Error(data.error);
 
-      model = updateModel(model, data.turn);
+      if (data.turn.kind !== "off-topic") model = updateModel(model, data.turn);
       const turn = toTutorTurn(data.turn, circle, data.model, data.ms, graphs);
       // The server always sends at least one beat; the lead visuals appear as it starts.
       if (input.lead?.length && turn.beats[0]) turn.beats[0].visuals.unshift(...input.lead);

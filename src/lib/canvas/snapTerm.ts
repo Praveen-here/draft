@@ -2,6 +2,7 @@ import type { Editor } from "tldraw";
 import type { BBox } from "@/lib/contracts";
 import { documentPages, pageText, shapeBox } from "./context";
 import { overlap, padded } from "./geometry";
+import { widthShare } from "./textMeasure";
 
 /** How a term is compared: no spaces, one multiply sign, superscripts as ^, one minus sign. */
 function normalise(text: string): string {
@@ -10,16 +11,6 @@ function normalise(text: string): string {
     .replace(/[\s​]/g, "")
     .replace(/[·⋅∙×*]/g, "·")
     .replace(/[−–—]/g, "-");
-}
-
-let measurer: CanvasRenderingContext2D | null | undefined;
-/** Share of a text run's width taken by its first `chars` characters (proportional fonts, not monospace). */
-function widthShare(text: string, from: number, to: number): [number, number] {
-  measurer ??= typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
-  if (!measurer) return [from / text.length, to / text.length];
-  measurer.font = "48px Helvetica, Arial, sans-serif";
-  const full = measurer.measureText(text).width || 1;
-  return [measurer.measureText(text.slice(0, from)).width / full, measurer.measureText(text.slice(0, to)).width / full];
 }
 
 /**

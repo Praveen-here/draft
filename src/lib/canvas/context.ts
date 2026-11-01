@@ -2,8 +2,10 @@ import { Box, b64Vecs, intersectPolygonPolygon, type Editor, type TLDrawShape, t
 import type { BBox, CircleContext, Target } from "@/lib/contracts";
 import type { Point } from "./circleDetect";
 import { overlap, validBox } from "./geometry";
+import { textInside } from "./pdfText";
 
-export type PdfTextItem = { text: string; bbox: BBox };
+export type { PdfTextItem } from "./pdfText";
+import type { PdfTextItem } from "./pdfText";
 
 export function shapeBox(editor: Editor, shape: TLShape): BBox {
   const box = editor.getShapePageBounds(shape);
@@ -90,7 +92,7 @@ export async function areaContext(editor: Editor, bbox: BBox, recentLines: strin
   const ink = chosenInk ?? studentInk(editor).filter((shape) => overlap(shapeBox(editor, shape), bbox) > 0);
   const highlights = editor.getCurrentPageShapes().filter((shape) => shape.type === "highlight" && shape.props.isComplete &&
     shape.meta.author !== "tutor" && overlap(shapeBox(editor, shape), bbox) > 0);
-  const text = page ? pageText(editor, page).filter((item) => overlap(item.bbox, bbox) > 0) : [];
+  const text = page ? textInside(pageText(editor, page), bbox) : [];
   const [crop, inkOnly] = await Promise.all([
     cropImage(editor, [...pages, ...ink, ...highlights], bbox),
     cropImage(editor, ink, bbox),

@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   for (const model of models) {
     try {
       const turn = trustTheEngine(guard(await callGemini(model.id, contents, model.timeoutMs)), body);
-      if (learner && body.problemId) {
+      if (learner && body.problemId && turn.kind !== "off-topic") {
         await recordTurn(
           { learnerId: learner, problemId: body.problemId.slice(0, 64), problem: body.problem },
           { topic: turn.topic, level: turn.level, hintLevel: turn.hintLevel, misconception: turn.misconception, done: turn.done, answer: body.answer?.verdict },
@@ -63,6 +63,8 @@ function buildContents(body: TutorRequest, profile: string): Content[] {
     parts.push({ text: "The student hasn't circled anything yet." });
   }
   if (body.pdfText) parts.push({ text: `Printed text inside the circle: ${body.pdfText}` });
+  else if (body.image) parts.push({ text: "No printed text inside the circle: it holds the student's own handwriting (read it from the picture)." });
+  if (body.handwriting?.length) parts.push({ text: `Recognised handwriting near the circle: ${body.handwriting.join("  |  ")}` });
 
   const history = body.history.length
     ? body.history.map((h) => `${h.role === "tutor" ? "Tutor" : "Student"}: ${h.text}`).join("\n")
@@ -134,6 +136,17 @@ function guard(turn: RawTurn): RawTurn {
       (v) => (v.type !== "writeStep" || ++steps <= 1) && (v.type !== "note" || ++notes <= 4),
     ),
   }));
+  if (turn.kind === "off-topic") {
+    return {
+      ...turn,
+      beats: (beats.length ? beats : [{ say: "Ha, I only do maths! Let's get back to your problem.", visuals: [] }])
+        .slice(0, 2).map((b) => ({ say: b.say, visuals: [] })),
+      done: false,
+      misconception: "",
+      waitFor: "answer",
+      hintLevel: Math.min(3, Math.max(1, Math.round(turn.hintLevel || 1))),
+    };
+  }
   return {
     ...turn,
     beats: beats.length ? beats : [{ say: turn.question || "Let's look at this together.", visuals: [] }],

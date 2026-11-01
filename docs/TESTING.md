@@ -12,6 +12,8 @@ Last updated: 1 Nov 2026. Results go in [TEST_RESULTS.md](TEST_RESULTS.md).
 | Brain: ticks, flags, hint offer, typed answers, solved (real engine, mocked Gemini, no database) | `npx tsx src/lib/agent/brain.test.mts` | `18/18 passed` |
 | Saved documents (dev server + `DATABASE_URL`) | `curl -X POST localhost:3000/api/documents -H "x-learner-id: test-learner-docs-01" -F "file=@samples/practice-sheet.pdf;type=application/pdf"` then `GET /api/documents` with the same header | a document id; the file in `storage/documents/<id>/`; the list has it. Delete test documents after |
 | Learner memory (needs the dev server and `DATABASE_URL`) | `curl "localhost:3000/api/learner?id=test-learner-0001"` | `"memory":true` and a summary |
+| Circled text (what counts as inside a circle) | `npx tsx --test src/lib/canvas/tests/textInside.test.ts` | `# pass 4` |
+| Tutor stays on maths (calls Gemini: 12 per round) | `node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/brain-scope.mts 2` | `24/24 right` (busy replies are not counted) |
 | Part D parser + visuals, Part A canvas geometry + read-ink route | `npx tsx --test src/lib/math/math.test.ts src/components/visuals/visuals.test.ts src/lib/canvas/tests/geometry.test.ts src/lib/canvas/tests/readInkRoute.test.ts` | `# pass 60`, `# fail 0` |
 | Folder ownership (part branches only) | `node .github/scripts/part-guard.mjs --local` | fails on lead branches like `integrate/all`; that's expected |
 

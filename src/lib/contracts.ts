@@ -73,7 +73,7 @@ export type Beat = {
 
 /** What the brain understood about the question (shown in the panel, useful for debugging). */
 export type TurnInsight = {
-  kind: "next-step" | "why" | "meaning" | "check" | "show" | "answer" | "other";
+  kind: "next-step" | "why" | "meaning" | "check" | "show" | "answer" | "other" | "off-topic";
   /** One line: the exact doubt, e.g. "doesn't know which part to call u". */
   doubt: string;
   /** How the student's last message went. */

@@ -30,7 +30,7 @@ export type RawTurn = {
   topic: string;
   /** How the student seems on this topic right now. */
   level: "foundation" | "developing" | "confident" | "advanced";
-  kind: "next-step" | "why" | "meaning" | "check" | "show" | "answer" | "other";
+  kind: "next-step" | "why" | "meaning" | "check" | "show" | "answer" | "other" | "off-topic";
   doubt: string;
   studentWas: "asking" | "correct" | "partly" | "wrong" | "unsure" | "claims-understood";
   stage: "understand" | "diagnose" | "explain" | "check" | "practice" | "verify" | "done";
@@ -98,7 +98,7 @@ export const TURN_SCHEMA = {
   properties: {
     topic: { type: "STRING", description: "short lowercase name of the skill this problem practises, e.g. integration by parts, chain rule, solving linear equations, quadratic graphs" },
     level: str(["foundation", "developing", "confident", "advanced"]),
-    kind: str(["next-step", "why", "meaning", "check", "show", "answer", "other"]),
+    kind: str(["next-step", "why", "meaning", "check", "show", "answer", "other", "off-topic"]),
     doubt: str(),
     studentWas: str(["asking", "correct", "partly", "wrong", "unsure", "claims-understood"]),
     stage: str(["understand", "diagnose", "explain", "check", "practice", "verify", "done"]),
@@ -135,6 +135,8 @@ export type TutorRequest = {
   /** The current problem (one per circle) and its printed text. */
   problemId?: string;
   problem?: string;
+  /** Recognised handwriting near the circle (LaTeX), so a circle round the student's own writing is read right. */
+  handwriting?: string[];
   /** The student's written lines for this problem, each with the math engine's verdict. */
   work?: string[];
   /** The engine's verdict on a typed/spoken answer that was math. Overrides Gemini when they disagree. */
