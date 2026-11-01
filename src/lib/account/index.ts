@@ -10,6 +10,12 @@ import { learnerId } from "@/lib/agent";
 
 const client = createAuthClient();
 
+/**
+ * Google sign-in is on only with NEXT_PUBLIC_GOOGLE_LOGIN=on in .env.local (paused for now: the buttons just open
+ * the app, and each device keeps its own documents and memory, as before sign-in existed).
+ */
+export const GOOGLE_LOGIN = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "on";
+
 export type Account = { id: string; name: string; email: string; image?: string | null };
 
 /** The signed-in account (null when signed out), and whether that's still being checked. */

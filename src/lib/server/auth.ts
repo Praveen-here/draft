@@ -9,8 +9,16 @@ import { nextCookies } from "better-auth/next-js";
 import { pool } from "./db";
 import { validLearnerId } from "./learnerStore";
 
+/** Where the app may be opened from: this laptop, and a tunnel to it (Cloudflare or ngrok) (e.g. a tablet on HTTPS). */
+const HOSTS = ["localhost:3000", "*.trycloudflare.com", "*.ngrok-free.app", "*.ngrok-free.dev", "*.ngrok.app", "*.ngrok.dev"];
+
 export const auth = betterAuth({
   database: pool() ?? undefined,
+  // The sign-in return address follows the address the app was opened on (Google must also list it).
+  baseURL: { allowedHosts: HOSTS, fallback: process.env.BETTER_AUTH_URL || "http://localhost:3000" },
+  // The tunnel forwards to plain http on this laptop and says the original was https in x-forwarded-proto.
+  advanced: { trustedProxyHeaders: true },
+  trustedOrigins: ["http://localhost:3000", ...HOSTS.filter((h) => h.startsWith("*.")).map((h) => `https://${h}`)],
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -54,6 +62,7 @@ export async function learnerFor(request: Request, deviceId?: string | null): Pr
   } catch {
     /* no database or sign-in not set up: fall through */
   }
-  if (process.env.NODE_ENV !== "production" && validLearnerId(deviceId)) return deviceId;
+  // Sign-in paused (NEXT_PUBLIC_GOOGLE_LOGIN not "on"): every device is its own learner, as before sign-in.
+  if ((process.env.NEXT_PUBLIC_GOOGLE_LOGIN !== "on" || process.env.NODE_ENV !== "production") && validLearnerId(deviceId)) return deviceId;
   return null;
 }

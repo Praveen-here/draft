@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { signInWithGoogle, useAccount } from "@/lib/account";
+import { GOOGLE_LOGIN, signInWithGoogle, useAccount } from "@/lib/account";
 
 const STYLE =
   "pressable inline-flex items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 py-3.5 text-[0.98rem] font-semibold text-[#1f1f1f] shadow-[0_1px_2px_rgba(16,24,40,0.06),0_6px_16px_-8px_rgba(16,24,40,0.18)] transition-[background-color,box-shadow] duration-150 hover:bg-[#f8f9fb] disabled:opacity-70";
@@ -14,6 +14,15 @@ const STYLE =
 export function GoogleButton({ className = "", then = "/app" }: { className?: string; then?: string }) {
   const { account } = useAccount();
   const [going, setGoing] = useState(false);
+  // Sign-in paused: the button just opens the app.
+  if (!GOOGLE_LOGIN) {
+    return (
+      <Link href={then} className={`${STYLE} ${className}`}>
+        <GoogleG className="h-5 w-5" />
+        Continue with Google
+      </Link>
+    );
+  }
   if (account) {
     return (
       <Link href={then} className={`${STYLE} ${className}`}>

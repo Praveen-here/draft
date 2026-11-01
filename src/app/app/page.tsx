@@ -8,7 +8,7 @@ import { MotionProvider } from "@/components/landing/motion";
 import Link from "next/link";
 import { GoogleButton } from "@/components/landing/GoogleButton";
 import { Logo } from "@/components/landing/Logo";
-import { useAccount } from "@/lib/account";
+import { GOOGLE_LOGIN, useAccount } from "@/lib/account";
 import { createDoc, openDoc } from "@/lib/docs";
 
 // The canvas touches window/pointer APIs, so it only renders in the browser.
@@ -61,9 +61,9 @@ export default function AppPage() {
 
   return (
     <MotionProvider>
-      {checking ? (
+      {GOOGLE_LOGIN && checking ? (
         <div className="fixed inset-0 bg-paper-2" />
-      ) : !account && !devGuest ? (
+      ) : GOOGLE_LOGIN && !account && !devGuest ? (
         <SignIn onGuest={DEV ? () => setDevGuest(true) : undefined} />
       ) : source ? (
         <Canvas source={source} onExit={() => setSource(null)} />
