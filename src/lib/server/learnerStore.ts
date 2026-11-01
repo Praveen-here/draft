@@ -136,6 +136,36 @@ export function summarizeProfile(p: Profile | null): string {
   return lines.join("\n");
 }
 
+/**
+ * First sign-in on a device: what was saved under the device's id before (documents, the tutor's memory) moves
+ * into the account. Refused when the "device id" is really another account's id. Returns how much moved.
+ */
+export async function adoptDeviceLearner(userId: string, deviceId: string): Promise<{ documents: number; problems: number } | null> {
+  if (!validLearnerId(userId) || !validLearnerId(deviceId) || userId === deviceId) return null;
+  return withDb(async (db) => {
+    const client = await db.connect();
+    try {
+      await client.query("begin");
+      const isAccount = await client.query(`select 1 from auth_users where id = $1`, [deviceId]);
+      if (isAccount.rowCount) { await client.query("rollback"); return null; }
+      await client.query(`insert into learners (id) values ($1) on conflict (id) do update set last_seen = now()`, [userId]);
+      const docs = await client.query(`update documents set learner_id = $1 where learner_id = $2`, [userId, deviceId]);
+      // A problem id is per circle, so they never clash; skip any that somehow would.
+      const probs = await client.query(
+        `update problems set learner_id = $1 where learner_id = $2
+           and problem_id not in (select problem_id from problems where learner_id = $1)`, [userId, deviceId]);
+      await client.query(`delete from learners where id = $1`, [deviceId]);
+      await client.query("commit");
+      return { documents: docs.rowCount ?? 0, problems: probs.rowCount ?? 0 };
+    } catch (err) {
+      await client.query("rollback").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+}
+
 /** "Forget me": deletes the learner and everything about them. */
 export async function forgetLearner(learnerId: string): Promise<boolean> {
   if (!validLearnerId(learnerId)) return false;

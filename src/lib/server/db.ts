@@ -54,7 +54,8 @@ type Shared = { pool: Pool | null; ready: Promise<void> | null; down: number; sc
 // One pool per server process, kept across dev hot reloads.
 const shared = ((globalThis as { __draftDb?: Shared }).__draftDb ??= { pool: null, ready: null, down: 0 });
 
-function pool(): Pool | null {
+/** The shared connection pool (null without DATABASE_URL). Sign-in (auth.ts) uses it too. */
+export function pool(): Pool | null {
   const url = process.env.DATABASE_URL;
   if (!url) return null;
   shared.pool ??= new Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 1500, idleTimeoutMillis: 30000 });

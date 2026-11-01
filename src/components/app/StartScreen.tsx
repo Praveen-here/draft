@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type DragEvent } from "react";
+import { signOut, type Account } from "@/lib/account";
 import { deleteDoc, listDocs, type DocSummary } from "@/lib/docs";
 import { Logo } from "../landing/Logo";
 import { DocIcon, PlusPageIcon, TrashIcon, UploadIcon } from "./icons";
@@ -12,8 +13,10 @@ const spring = { type: "spring" as const, bounce: 0, duration: 0.45 };
 
 const ACCEPT = ".pdf,application/pdf,image/png,image/jpeg,image/webp";
 
-export function StartScreen({ onOpen, onOpenSaved, busy, notice }: {
+export function StartScreen({ onOpen, onOpenSaved, busy, notice, account }: {
   onOpen: (source: DocSource) => void;
+  /** Who is signed in (shown top right, with Sign out). */
+  account?: Account | null;
   /** Reopen a saved document. */
   onOpenSaved?: (id: string) => void;
   /** Saving or opening in progress: what to say while it happens. */
@@ -53,6 +56,7 @@ export function StartScreen({ onOpen, onOpenSaved, busy, notice }: {
         <Link href="/" className="pressable rounded-lg" aria-label="∂raft home">
           <Logo />
         </Link>
+        {account && <AccountMenu account={account} />}
       </header>
 
       <main className="mx-auto max-w-5xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16">
@@ -216,8 +220,11 @@ function Recent({ onOpen }: { onOpen: (id: string) => void }) {
   const [docs, setDocs] = useState<DocSummary[] | null>(null);
   useEffect(() => {
     let live = true;
-    void listDocs().then((d) => { if (live) setDocs(d); });
-    return () => { live = false; };
+    const load = () => void listDocs().then((d) => { if (live) setDocs(d); });
+    load();
+    // Documents saved on this device before signing in move into the account just after sign-in.
+    window.addEventListener("draft:documents-changed", load);
+    return () => { live = false; window.removeEventListener("draft:documents-changed", load); };
   }, []);
   if (!docs?.length) return null;
 
@@ -275,6 +282,73 @@ function Recent({ onOpen }: { onOpen: (id: string) => void }) {
         </AnimatePresence>
       </ul>
     </motion.section>
+  );
+}
+
+/** The signed-in account: photo (or initial) and first name; tap for the email and Sign out. */
+function AccountMenu({ account }: { account: Account }) {
+  const [open, setOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const first = account.name.split(" ")[0] || account.email;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="pressable flex items-center gap-2 rounded-full border border-line bg-white py-1 pl-1 pr-3 text-[0.9rem] font-semibold text-text"
+      >
+        <Avatar account={account} />
+        <span className="max-w-[10rem] truncate">{first}</span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            className="surface absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl p-2"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={spring}
+            style={{ transformOrigin: "top right" }}
+          >
+            <div className="px-3 py-2">
+              <p className="truncate text-[0.92rem] font-semibold text-text">{account.name}</p>
+              <p className="t-small truncate text-subtle">{account.email}</p>
+            </div>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={leaving}
+              onClick={async () => {
+                setLeaving(true);
+                await signOut();
+                window.location.href = "/";
+              }}
+              className="pressable mt-1 w-full rounded-xl px-3 py-2 text-left text-[0.92rem] font-semibold text-[#b42318] hover:bg-black/5"
+            >
+              {leaving ? "Signing out…" : "Sign out"}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export function Avatar({ account, size = 28 }: { account: Account; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  if (account.image && !broken) {
+    // Google's profile photo (plain img: no image optimiser needed for a 28 px avatar).
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={account.image} alt="" width={size} height={size} referrerPolicy="no-referrer"
+      onError={() => setBroken(true)} className="rounded-full object-cover" style={{ width: size, height: size }} />;
+  }
+  return (
+    <span className="flex items-center justify-center rounded-full bg-ink text-[0.8rem] font-bold text-white" style={{ width: size, height: size }}>
+      {(account.name || account.email).charAt(0).toUpperCase()}
+    </span>
   );
 }
 

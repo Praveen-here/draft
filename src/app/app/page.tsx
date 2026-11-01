@@ -5,6 +5,10 @@ import { useState } from "react";
 import { StartScreen } from "@/components/app/StartScreen";
 import { PAPERS, type DocSource, type Paper } from "@/components/app/types";
 import { MotionProvider } from "@/components/landing/motion";
+import Link from "next/link";
+import { GoogleButton } from "@/components/landing/GoogleButton";
+import { Logo } from "@/components/landing/Logo";
+import { useAccount } from "@/lib/account";
 import { createDoc, openDoc } from "@/lib/docs";
 
 // The canvas touches window/pointer APIs, so it only renders in the browser.
@@ -15,7 +19,12 @@ const Canvas = dynamic(() => import("@/components/app/Canvas").then((m) => m.Can
 
 const paperOf = (p: string): Paper => (PAPERS.some((x) => x.id === p) ? (p as Paper) : "blank");
 
+/** While developing, the app can also be used signed out (on this device's id), e.g. by test scripts. */
+const DEV = process.env.NODE_ENV === "development";
+
 export default function AppPage() {
+  const { account, checking } = useAccount();
+  const [devGuest, setDevGuest] = useState(false);
   const [source, setSource] = useState<DocSource | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -52,11 +61,38 @@ export default function AppPage() {
 
   return (
     <MotionProvider>
-      {source ? (
+      {checking ? (
+        <div className="fixed inset-0 bg-paper-2" />
+      ) : !account && !devGuest ? (
+        <SignIn onGuest={DEV ? () => setDevGuest(true) : undefined} />
+      ) : source ? (
         <Canvas source={source} onExit={() => setSource(null)} />
       ) : (
-        <StartScreen onOpen={openNew} onOpenSaved={openSaved} busy={busy} notice={notice} />
+        <StartScreen onOpen={openNew} onOpenSaved={openSaved} busy={busy} notice={notice} account={account} />
       )}
     </MotionProvider>
+  );
+}
+
+/** Signed out: everything is kept per account, so sign in first. */
+function SignIn({ onGuest }: { onGuest?: () => void }) {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-paper-2 px-5">
+      <div className="surface flex w-full max-w-sm flex-col items-center rounded-[24px] px-8 py-10 text-center">
+        <Link href="/" className="pressable rounded-lg" aria-label="∂raft home">
+          <Logo />
+        </Link>
+        <h1 className="t-h3 mt-6">Sign in to keep your work</h1>
+        <p className="mt-2 text-[0.95rem] leading-[1.55] text-muted">
+          Your documents, your conversations with ∂raft and what it learns about how you study are saved to your account.
+        </p>
+        <GoogleButton className="mt-7 w-full" />
+        {onGuest && (
+          <button type="button" onClick={onGuest} className="pressable t-small mt-4 text-subtle underline underline-offset-2">
+            Continue without signing in (development only)
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

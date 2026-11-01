@@ -4,7 +4,8 @@
 import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import { TURN_SCHEMA, type RawTurn, type TutorRequest, type TutorResponse } from "@/lib/agent/schema";
 import { key } from "@/lib/server/keys";
-import { loadProfile, recordTurn, summarizeProfile, validLearnerId } from "@/lib/server/learnerStore";
+import { learnerFor } from "@/lib/server/auth";
+import { loadProfile, recordTurn, summarizeProfile } from "@/lib/server/learnerStore";
 
 // Flash-Lite first: ~2 s per turn in our tests (31 Oct), while Flash was often overloaded (503) or 40 s+.
 const MODELS: { id: string; timeoutMs: number }[] = [
@@ -18,7 +19,8 @@ const MODELS: { id: string; timeoutMs: number }[] = [
 export async function POST(request: Request) {
   const body = (await request.json()) as TutorRequest;
   // What we remember about this learner goes into the prompt (none if there's no database: the tutor still works).
-  const learner = validLearnerId(body.learnerId) ? body.learnerId : null;
+  // The signed-in account (or, while developing signed out, this device's id).
+  const learner = await learnerFor(request, body.learnerId);
   const profile = summarizeProfile(learner ? await loadProfile(learner) : null);
   const contents = buildContents(body, profile);
   const started = Date.now();

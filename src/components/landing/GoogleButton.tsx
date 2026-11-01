@@ -1,18 +1,40 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { signInWithGoogle, useAccount } from "@/lib/account";
+
+const STYLE =
+  "pressable inline-flex items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 py-3.5 text-[0.98rem] font-semibold text-[#1f1f1f] shadow-[0_1px_2px_rgba(16,24,40,0.06),0_6px_16px_-8px_rgba(16,24,40,0.18)] transition-[background-color,box-shadow] duration-150 hover:bg-[#f8f9fb] disabled:opacity-70";
 
 /**
- * Placeholder sign-in: no real Google auth yet, it just opens the app.
- * Styled after Google's light "Continue with Google" button.
+ * Sign in with Google (Better Auth), styled after Google's light "Continue with Google" button.
+ * Already signed in: it says "Continue as <name>" and opens the app.
  */
-export function GoogleButton({ className = "" }: { className?: string }) {
+export function GoogleButton({ className = "", then = "/app" }: { className?: string; then?: string }) {
+  const { account } = useAccount();
+  const [going, setGoing] = useState(false);
+  if (account) {
+    return (
+      <Link href={then} className={`${STYLE} ${className}`}>
+        <GoogleG className="h-5 w-5" />
+        Continue as {account.name.split(" ")[0] || account.email}
+      </Link>
+    );
+  }
   return (
-    <Link
-      href="/app"
-      className={`pressable inline-flex items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 py-3.5 text-[0.98rem] font-semibold text-[#1f1f1f] shadow-[0_1px_2px_rgba(16,24,40,0.06),0_6px_16px_-8px_rgba(16,24,40,0.18)] transition-[background-color,box-shadow] duration-150 hover:bg-[#f8f9fb] ${className}`}
+    <button
+      type="button"
+      disabled={going}
+      onClick={() => {
+        setGoing(true);
+        void signInWithGoogle(then).catch(() => setGoing(false));
+      }}
+      className={`${STYLE} ${className}`}
     >
       <GoogleG className="h-5 w-5" />
-      Continue with Google
-    </Link>
+      {going ? "Opening Google…" : "Continue with Google"}
+    </button>
   );
 }
 

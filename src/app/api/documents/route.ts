@@ -1,23 +1,24 @@
-// A learner's documents (src/lib/server/documentStore.ts). The learner is sent as the x-learner-id header.
+// A learner's documents (src/lib/server/documentStore.ts). The learner is the signed-in account (auth.ts);
+// while developing, a signed-out browser may use its device id (x-learner-id header).
 //   GET  /api/documents  → the list, most recently opened first
 //   POST /api/documents  → a new document: multipart with "file" (PDF/image), "title", "paper"; or JSON { title, paper } for blank paper
 
 import { createDocument, listDocuments, MAX_FILE_BYTES } from "@/lib/server/documentStore";
-import { validLearnerId } from "@/lib/server/learnerStore";
+import { learnerFor } from "@/lib/server/auth";
 
 const MIMES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 const noDb = () => Response.json({ error: "Saving is off: no database." }, { status: 503 });
 
 export async function GET(request: Request) {
-  const learner = request.headers.get("x-learner-id");
-  if (!validLearnerId(learner)) return Response.json({ error: "Unknown learner." }, { status: 400 });
+  const learner = await learnerFor(request, request.headers.get("x-learner-id"));
+  if (!learner) return Response.json({ error: "Please sign in." }, { status: 401 });
   const docs = await listDocuments(learner);
   return docs ? Response.json({ documents: docs }) : noDb();
 }
 
 export async function POST(request: Request) {
-  const learner = request.headers.get("x-learner-id");
-  if (!validLearnerId(learner)) return Response.json({ error: "Unknown learner." }, { status: 400 });
+  const learner = await learnerFor(request, request.headers.get("x-learner-id"));
+  if (!learner) return Response.json({ error: "Please sign in." }, { status: 401 });
   try {
     if ((request.headers.get("content-type") ?? "").includes("multipart/form-data")) {
       const form = await request.formData();

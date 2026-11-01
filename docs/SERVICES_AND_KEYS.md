@@ -108,6 +108,14 @@ Plus one switch: `APP_ENV=dev` (laptops) / `APP_ENV=demo` (Vercel production, de
 - The app creates its tables on first use (`src/lib/server/db.ts`). Without `DATABASE_URL`, or with Postgres down, the tutor works without memory.
 - Library: `pg` (node-postgres).
 
+## 6c. Google sign-in (Better Auth)
+
+- **Google Cloud Console** → project → OAuth consent screen (External, Testing, test users = the team) → OAuth client **Web application**.
+  - Authorized JavaScript origin: `http://localhost:3000`. Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`.
+  - Going online later: add the real origin and `https://<site>/api/auth/callback/google`, set `BETTER_AUTH_URL` to the real address, publish the consent screen.
+- `.env.local`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET` (random), `BETTER_AUTH_URL`. Never commit or paste them.
+- Library: `better-auth` (free; telemetry turned off in `src/lib/server/auth.ts`). Users and sessions live in our Postgres (`auth_*` tables, created on first use).
+
 ## 7. Other free tools (no keys needed)
 
 | Tool | Use | Note |
